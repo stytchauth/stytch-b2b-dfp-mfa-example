@@ -1,0 +1,52 @@
+.header {
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(229, 232, 235, 1);
+  background-color: #fff;
+  align-self: stretch;
+  display: flex;
+  width: 100%;
+  gap: 20px;
+  padding: 24px 32px;
+}
+
+.logoContainer {
+  display: flex;
+  gap: 8px;
+  font-size: 28px;
+  color: #179f97;
+  font-weight: 600;
+  line-height: 100%;
+  margin: auto 0;
+}
+
+.logo {
+  aspect-ratio: 5.26;
+  object-fit: auto;
+  object-position: center;
+  width: 108px;
+  max-width: 100%;
+  margin: auto 0;
+}
+
+.logoText {
+  font-family: IBM Plex Sans, -apple-system, Roboto, Helvetica, sans-serif;
+}
+
+.navLinks {
+  justify-content: flex-end;
+  display: flex;
+  gap: 16px;
+  font-size: 16px;
+  color: #19303d;
+  font-weight: 500;
+  white-space: nowrap;
+  text-align: center;
+  line-height: 32px;
+  flex: 1;
+  padding: 7px 80px;
+}
+
+.navLink {
+  font-family: IBM Plex Sans, -apple-system, Roboto, Helvetica, sans-serif;
+  text-decoration: none; 
+}

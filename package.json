@@ -1,0 +1,29 @@
+{
+  "name": "stytch-b2b-nextjs-dfp-mfa-example",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@stytch/nextjs": "^20.2.0",
+    "@stytch/vanilla-js": "^4.15.0",
+    "@types/node": "20.14.12",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "eslint": "8.57.0",
+    "eslint-config-next": "14.2.5",
+    "next": "^14.2.5",
+    "prettier": "^3.3.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "stytch": "^10.20.0",
+    "typescript": "5.5.4"
+  },
+  "prettier": {}
+}

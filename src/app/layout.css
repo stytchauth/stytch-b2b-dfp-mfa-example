@@ -1,0 +1,40 @@
+.page-container {
+  height: 100%;
+}
+
+.content-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 80%;
+}
+
+.index-title {
+  color: #179f97;
+  font: 600 20px/120% IBM Plex Sans, -apple-system, Roboto, Helvetica, sans-serif;
+  align-self: center;
+}
+
+.index-content {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 80px;
+}
+
+.index-heading {
+  color: #19303d;
+  font: 600 60px/115% IBM Plex Sans, -apple-system, Roboto, Helvetica, sans-serif;
+}
+
+.index-login-button {
+  border-radius: 3px;
+  background-color: #19303d;
+  margin-top: 52px;
+  color: #fff;
+  padding: 7px 22px;
+  font: 500 16px/32px IBM Plex Sans, -apple-system, Roboto, Helvetica, sans-serif;
+  text-decoration: none;
+}
