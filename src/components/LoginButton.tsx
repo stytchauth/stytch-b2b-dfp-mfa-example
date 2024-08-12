@@ -6,7 +6,10 @@ import { checkFingerprintAndRedirect } from "../app/utils";
 export default function LoginButton() {
   const router = useRouter();
   return (
-    <button onClick={() => checkFingerprintAndRedirect(router, "/login")}>
+    <button
+      className="index-login-button"
+      onClick={() => checkFingerprintAndRedirect(router, "/login")}
+    >
       Login
     </button>
   );

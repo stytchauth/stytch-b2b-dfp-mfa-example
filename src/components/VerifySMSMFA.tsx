@@ -1,6 +1,11 @@
-import { useStytchB2BClient } from "@stytch/nextjs/b2b";
+"use client";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
+import {
+  addKnownDeviceAfterVerify,
+  sendSMSCode,
+  verifySMSCode,
+} from "../app/actions";
 import "./VerifySMSMFA.css";
 
 interface VerifySMSMFAProps {
@@ -14,7 +19,6 @@ export default function VerifySMSMFA({
   member_id,
   organization_id,
 }: VerifySMSMFAProps) {
-  const stytch = useStytchB2BClient();
   const router = useRouter();
 
   const [code, setCode] = useState("");
@@ -23,15 +27,17 @@ export default function VerifySMSMFA({
 
   useEffect(() => {
     const sendCode = async () => {
-      await stytch.otps.sms.send({
-        member_id,
-        organization_id,
-      });
+      try {
+        await sendSMSCode(member_id, organization_id);
+      } catch (error) {
+        console.error("Error sending SMS code:", error);
+        setMessage("Error sending verification code. Please try again.");
+      }
     };
     if (member_id && organization_id && sendVerifyCode && !code) {
       sendCode();
     }
-  }, [stytch, code, sendVerifyCode]);
+  }, [member_id, organization_id, sendVerifyCode, code]);
 
   const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setCode(e.target.value);
@@ -42,12 +48,8 @@ export default function VerifySMSMFA({
     e.preventDefault();
     setIsLoading(true);
     try {
-      await stytch.otps.sms.authenticate({
-        member_id,
-        organization_id,
-        code,
-        session_duration_minutes: 60,
-      });
+      await verifySMSCode(member_id, organization_id, code);
+      addKnownDeviceAfterVerify();
       setMessage("MFA authentication successful!");
       router.push("/dashboard");
     } catch (error) {
@@ -57,6 +59,7 @@ export default function VerifySMSMFA({
       setIsLoading(false);
     }
   };
+
   return (
     <div className="login-container">
       <div className="login-content">
@@ -65,22 +68,33 @@ export default function VerifySMSMFA({
         </h2>
         <form onSubmit={verifyCode} className="login-form">
           <div className="form-group">
-            <label htmlFor="code">Code</label>
+            <label htmlFor="code">Verification Code</label>
             <input
               id="code"
               name="code"
               type="text"
+              inputMode="numeric"
+              pattern="\d{6}"
+              maxLength={6}
               value={code}
               onChange={handleCodeChange}
               required
               autoComplete="one-time-code"
+              aria-describedby="code-description"
             />
+            <small id="code-description">
+              Enter the 6-digit code you received via SMS
+            </small>
           </div>
           <button type="submit" className="submit-button" disabled={isLoading}>
             {isLoading ? "Verifying..." : "Verify"}
           </button>
         </form>
-        {message && <p className="message">{message}</p>}
+        {message && (
+          <p className="message" role="alert">
+            {message}
+          </p>
+        )}
       </div>
     </div>
   );

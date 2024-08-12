@@ -10,6 +10,9 @@ const Dashboard = () => {
   const { session } = useStytchMemberSession();
   const { organization } = useStytchOrganization();
 
+  console.log("session", session);
+  console.log("organization", organization);
+
   const role = useMemo(() => {
     return session?.roles.includes("stytch_admin") ? "admin" : "member";
   }, [session?.roles]);

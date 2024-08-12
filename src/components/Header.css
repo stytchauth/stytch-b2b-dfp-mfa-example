@@ -32,6 +32,17 @@
   font-family: IBM Plex Sans, -apple-system, Roboto, Helvetica, sans-serif;
 }
 
+.customLink {
+  text-decoration: none;
+  color: inherit;
+}
+
+.customLink:hover,
+.customLink:active,
+.customLink:focus {
+  text-decoration: none;
+}
+
 .navLinks {
   justify-content: flex-end;
   display: flex;

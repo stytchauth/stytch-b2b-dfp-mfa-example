@@ -19,8 +19,13 @@ const Header = () => {
   return (
     <header className="header">
       <div className="logoContainer">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img loading="lazy" src={logoSrc} alt="Stytch logo" className="logo" />
-        <div className="logoText">Adaptive MFA (Example)</div>
+        <div className="logoText">
+          <Link href="/" className="customLink">
+            Adaptive MFA (Example)
+          </Link>
+        </div>
       </div>
       <nav className="navLinks">
         <Link href="/" className="navLink">
