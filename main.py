@@ -2,6 +2,7 @@ import os
 import sys
 
 import dotenv
+import requests
 import stytch
 from stytch.b2b.models.organizations import SearchQuery
 from stytch.b2b.models.organizations import UpdateRequestOptions
@@ -52,7 +53,25 @@ def index():
             "loggedIn.html", member=member, organization=organization
         )
 
-    return render_template("discoveryLogin.html")
+    return render_template("index.html", public_token=STYTCH_PUBLIC_TOKEN)
+
+
+# Login route
+@app.route("/login", methods=["GET"])
+def login() -> str:
+    telemetry_id = request.args.get("telemetry_id")
+    print("telemetry_id", telemetry_id)
+    if telemetry_id:
+        verdictAction = fingerprint_lookup(telemetry_id)
+        print("VA", verdictAction)
+        if verdictAction == "ALLOW":
+            return render_template("discoveryLogin.html")
+        elif verdictAction == "CHALLENGE":
+            return "Challenge"
+        elif verdictAction == "BLOCK":
+            return render_template("oops.html")
+        else:
+            return "Unsupported verdict action"
 
 
 @app.route("/logout")
@@ -452,6 +471,21 @@ def get_authenticated_member_and_organization():
     # Remember to reset the cookie session, as sessions.authenticate() will issue a new token
     session["stytch_session_token"] = resp.session_token
     return resp.member, resp.organization
+
+
+def fingerprint_lookup(telemetry_id: str):
+    url = f"https://telemetry.stytch.com/v1/fingerprint/lookup?telemetry_id={telemetry_id}"
+    auth = (STYTCH_PROJECT_ID, STYTCH_SECRET)
+
+    response = requests.get(url, auth=auth)
+
+    print(response.json())
+
+    if response.status_code == 200:
+        resp = response.json()
+        return resp["verdict"]["action"]
+    else:
+        return {"error": f"Request failed with status code {response.status_code}"}
 
 
 # run's the app on the provided host & port
