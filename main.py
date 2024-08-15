@@ -346,53 +346,66 @@ def get_authenticated_member_and_organization():
     return resp.member, resp.organization
 
 
-@app.route("/enroll-mfa/<org_slug>", methods=["GET"])
-def enroll_mfa(org_slug):
-    return render_template("enrollMFA.html", org_slug=org_slug)
+@app.route("/enroll-mfa", methods=["GET"])
+def enroll_mfa():
+    return render_template("enrollMFA.html")
 
 
 @app.route("/start-mfa-enrollment", methods=["POST"])
 def start_mfa_enrollment():
     phone = request.form.get("phone")
-    org_id = session.get("org_id")
-    member_id = session.get("member_id")
+    member, organization = get_authenticated_member_and_organization()
+    if member is None or organization is None:
+        return redirect(url_for("index"))
 
-    if not phone or not org_id or not member_id:
+    if not phone:
         return "Missing required field", 400
 
-    try:
-        resp = stytch_client.otps.sms.send(
-            organization_id=org_id, member_id=member_id, mfa_phone_number=phone
-        )
-        return render_template(
-            "inputMFACode.html", organization_id=org_id, member_id=member_id
-        )
-    except stytch.exceptions.RequestException as e:
-        return str(e), 400
+    resp = stytch_client.otps.sms.send(
+        organization_id=organization.organization_id,
+        member_id=member.member_id,
+        mfa_phone_number=phone,
+    )
+
+    if resp.status_code != 200:
+        return "Error sending MFA code"
+
+    return render_template(
+        "inputMFACode.html",
+        organization_id=organization.organization_id,
+        member_id=member.member_id,
+    )
 
 
 @app.route("/authenticate-mfa", methods=["POST"])
 def authenticate_mfa():
     code = request.form.get("code")
-    org_id = session.get("org_id")
-    member_id = session.get("member_id")
+    member, organization = get_authenticated_member_and_organization()
 
-    if not code or not org_id or not member_id:
+    if member is None or organization is None:
+        return redirect(url_for("index"))
+
+    if not code:
         return "Missing required field", 400
 
-    try:
-        resp = stytch_client.otps.sms.authenticate(
-            code=code, organization_id=org_id, member_id=member_id
-        )
-        # TODO: Replace member_id with visitor_fingerprint once we have that implemented
-        # Add device to known devices
-        device_id = member_id
-        if device_id:
-            known_devices.append(device_id)
+    resp = stytch_client.otps.sms.authenticate(
+        session_token=session.get("stytch_session_token"),
+        code=code,
+        organization_id=organization.organization_id,
+        member_id=member.member_id,
+        set_mfa_enrollment="enroll",
+    )
 
-        return redirect(url_for("org_home", slug=resp.organization.organization_slug))
-    except stytch.exceptions.RequestException as e:
-        return str(e), 400
+    if resp.status_code != 200:
+        return "Error authenticating MFA code"
+
+    # TODO: Replace member_id with visitor_fingerprint once we have that implemented
+    # Add device to known devices
+    device_id = member.member_id
+    if device_id:
+        known_devices.append(device_id)
+
+    return redirect(url_for("index"))
 
 
 # run's the app on the provided host & port
