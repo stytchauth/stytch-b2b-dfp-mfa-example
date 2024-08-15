@@ -1,0 +1,4 @@
+flask[async]>=3.0.3
+python-dotenv>=1.0.1
+stytch>=11.3.0
+requests>=2.32.3
