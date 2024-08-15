@@ -1,0 +1,9 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2>Enroll in MFA (SMS)</h2>
+<form action="{{ url_for('start_mfa_enrollment') }}" method="post">
+    <label for="phone">Phone Number:</label>
+    <input type="text" id="phone" name="phone" required>
+    <button type="submit">Enroll</button>
+</form>
+{% endblock %}

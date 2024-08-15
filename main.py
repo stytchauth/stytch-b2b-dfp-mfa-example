@@ -40,6 +40,9 @@ stytch_client = stytch.B2BClient(
 app = Flask(__name__)
 app.secret_key = "some-secret-key"
 
+# In-memory array to store known devices
+known_devices = []
+
 
 @app.route("/")
 def index():
@@ -127,6 +130,17 @@ def authenticate():
             return "Error authenticating organization magic link", 500
 
         session["stytch_session_token"] = resp.session_token
+
+        # TODO: Replace member_id with visitor_fingerprint once we have that implemented
+        # Check if the device is known (using member_id as a proxy for device_id)
+        device_id = resp.member_id
+        print("device_id:", device_id)
+        if device_id not in known_devices:
+            # Redirect to MFA enrollment
+            return redirect(
+                url_for("enroll_mfa", org_slug=resp.organization.organization_slug)
+            )
+
         return redirect(url_for("index"))
     else:
         return "Unsupported auth method", 500
@@ -330,6 +344,55 @@ def get_authenticated_member_and_organization():
     # Remember to reset the cookie session, as sessions.authenticate() will issue a new token
     session["stytch_session_token"] = resp.session_token
     return resp.member, resp.organization
+
+
+@app.route("/enroll-mfa/<org_slug>", methods=["GET"])
+def enroll_mfa(org_slug):
+    return render_template("enrollMFA.html", org_slug=org_slug)
+
+
+@app.route("/start-mfa-enrollment", methods=["POST"])
+def start_mfa_enrollment():
+    phone = request.form.get("phone")
+    org_id = session.get("org_id")
+    member_id = session.get("member_id")
+
+    if not phone or not org_id or not member_id:
+        return "Missing required field", 400
+
+    try:
+        resp = stytch_client.otps.sms.send(
+            organization_id=org_id, member_id=member_id, mfa_phone_number=phone
+        )
+        return render_template(
+            "inputMFACode.html", organization_id=org_id, member_id=member_id
+        )
+    except stytch.exceptions.RequestException as e:
+        return str(e), 400
+
+
+@app.route("/authenticate-mfa", methods=["POST"])
+def authenticate_mfa():
+    code = request.form.get("code")
+    org_id = session.get("org_id")
+    member_id = session.get("member_id")
+
+    if not code or not org_id or not member_id:
+        return "Missing required field", 400
+
+    try:
+        resp = stytch_client.otps.sms.authenticate(
+            code=code, organization_id=org_id, member_id=member_id
+        )
+        # TODO: Replace member_id with visitor_fingerprint once we have that implemented
+        # Add device to known devices
+        device_id = member_id
+        if device_id:
+            known_devices.append(device_id)
+
+        return redirect(url_for("org_home", slug=resp.organization.organization_slug))
+    except stytch.exceptions.RequestException as e:
+        return str(e), 400
 
 
 # run's the app on the provided host & port
