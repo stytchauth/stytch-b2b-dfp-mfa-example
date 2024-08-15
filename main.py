@@ -131,16 +131,6 @@ def authenticate():
 
         session["stytch_session_token"] = resp.session_token
 
-        # TODO: Replace member_id with visitor_fingerprint once we have that implemented
-        # Check if the device is known (using member_id as a proxy for device_id)
-        device_id = resp.member_id
-        print("device_id:", device_id)
-        if device_id not in known_devices:
-            # Redirect to MFA enrollment
-            return redirect(
-                url_for("enroll_mfa", org_slug=resp.organization.organization_slug)
-            )
-
         return redirect(url_for("index"))
     else:
         return "Unsupported auth method", 500
@@ -181,6 +171,17 @@ def create_organization():
 @app.route("/exchange/<string:organization_id>")
 def exchange_into_organization(organization_id):
     ist = session.get("ist", None)
+
+    # Where to perform the return MFA check?
+    # TODO: Replace member_id with visitor_fingerprint once we have that implemented
+    # Check if the device is known (using member_id as a proxy for device_id)
+    # device_id = resp.member_id
+    # print("device_id:", device_id)
+    # if device_id not in known_devices:
+    #     return redirect(
+    #         url_for("verify_mfa")
+    #     )
+
     if ist:
         resp = stytch_client.discovery.intermediate_sessions.exchange(
             intermediate_session_token=ist, organization_id=organization_id
@@ -328,27 +329,23 @@ def enable_jit():
     return redirect(url_for("index"))
 
 
-# Helper to retrieve the authenticated Member and Organization context
-def get_authenticated_member_and_organization():
-    stytch_session = session.get("stytch_session_token")
-    if not stytch_session:
-        return None, None
-
-    resp = stytch_client.sessions.authenticate(session_token=stytch_session)
-    print(resp)
-    if resp.status_code != 200:
-        print("Invalid session")
-        session.pop("stytch_session_token")
-        return None, None
-
-    # Remember to reset the cookie session, as sessions.authenticate() will issue a new token
-    session["stytch_session_token"] = resp.session_token
-    return resp.member, resp.organization
-
-
 @app.route("/enroll-mfa", methods=["GET"])
 def enroll_mfa():
     return render_template("enrollMFA.html")
+
+
+@app.route("/verify-mfa", methods=["GET"])
+def verify_mfa():
+    member, organization = get_authenticated_member_and_organization()
+    if member is None or organization is None:
+        return redirect(url_for("index"))
+
+    return render_template(
+        "inputMFACode.html",
+        organization_id=organization.organization_id,
+        member_id=member.member_id,
+        form_action=url_for("authenticate_mfa"),
+    )
 
 
 @app.route("/start-mfa-enrollment", methods=["POST"])
@@ -374,11 +371,42 @@ def start_mfa_enrollment():
         "inputMFACode.html",
         organization_id=organization.organization_id,
         member_id=member.member_id,
+        form_action=url_for("optional_mfa_enrollment"),
     )
 
 
 @app.route("/authenticate-mfa", methods=["POST"])
-def authenticate_mfa():
+def authenticate_mfa() -> str:
+    code = request.form.get("code", None)
+    member, organization = get_authenticated_member_and_organization()
+
+    if member is None or organization is None:
+        return redirect(url_for("index"))
+
+    if code is None:
+        return "Missing required field", 400
+
+    ist = session.get("ist")
+    if not ist:
+        return "No intermediate session token", 400
+
+    resp = stytch_client.otps.sms.authenticate(
+        intermediate_session_token=ist,
+        code=code,
+        organization_id=organization.organization_id,
+        member_id=member.member_id,
+    )
+
+    if resp.status_code != 200:
+        return "error authenticating mfa", 500
+
+    session.pop("ist", None)
+    session["stytch_session"] = resp.session_token
+    return redirect(url_for("index"))
+
+
+@app.route("/optional-mfa-enrollment", methods=["POST"])
+def optional_mfa_enrollment():
     code = request.form.get("code")
     member, organization = get_authenticated_member_and_organization()
 
@@ -406,6 +434,24 @@ def authenticate_mfa():
         known_devices.append(device_id)
 
     return redirect(url_for("index"))
+
+
+# Helper to retrieve the authenticated Member and Organization context
+def get_authenticated_member_and_organization():
+    stytch_session = session.get("stytch_session_token")
+    if not stytch_session:
+        return None, None
+
+    resp = stytch_client.sessions.authenticate(session_token=stytch_session)
+    print(resp)
+    if resp.status_code != 200:
+        print("Invalid session")
+        session.pop("stytch_session_token")
+        return None, None
+
+    # Remember to reset the cookie session, as sessions.authenticate() will issue a new token
+    session["stytch_session_token"] = resp.session_token
+    return resp.member, resp.organization
 
 
 # run's the app on the provided host & port
