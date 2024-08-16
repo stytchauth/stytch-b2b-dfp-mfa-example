@@ -62,13 +62,14 @@ def login() -> str:
     telemetry_id = request.args.get("telemetry_id")
     print("telemetry_id", telemetry_id)
     if telemetry_id:
-        verdictAction = fingerprint_lookup(telemetry_id)
-        print("VA", verdictAction)
-        if verdictAction == "ALLOW":
+        lookup_result = fingerprint_lookup(telemetry_id)
+        verdict_action = lookup_result["verdict"]["action"]
+        print("VA", verdict_action)
+        if verdict_action == "ALLOW":
             return render_template("discoveryLogin.html")
-        elif verdictAction == "CHALLENGE":
+        elif verdict_action == "CHALLENGE":
             return "Challenge"
-        elif verdictAction == "BLOCK":
+        elif verdict_action == "BLOCK":
             return render_template("oops.html")
         else:
             return "Unsupported verdict action"
@@ -140,6 +141,7 @@ def authenticate():
             discovered_organizations=orgs,
             email_address=resp.email_address,
             is_login=True,
+            public_token=STYTCH_PUBLIC_TOKEN,
         )
 
     elif token_type == "multi_tenant_magic_links":
@@ -183,6 +185,19 @@ def create_organization():
     return redirect(url_for("index"))
 
 
+# def redirect_based_on_verdict(telemetry_id):
+#     verdictAction = fingerprint_lookup(telemetry_id)
+#     print("VA", verdictAction)
+#     if verdictAction == "ALLOW":
+#         return redirect(url_for("index"))
+#     elif verdictAction == "CHALLENGE":
+#         return redirect(url_for("verify_mfa"))
+#     elif verdictAction == "BLOCK":
+#         return redirect(url_for("oops"))
+#     else:
+#         return "Unsupported verdict action"
+
+
 # After Discovery, users can opt to log into an existing Organization
 # that they belong to or are eligible to join by Email Domain JIT Provision or a pending invite
 # You will exchange the IST returned from the discovery.authenticate() method call
@@ -190,16 +205,35 @@ def create_organization():
 @app.route("/exchange/<string:organization_id>")
 def exchange_into_organization(organization_id):
     ist = session.get("ist", None)
+    telemetry_id = request.args.get("telemetry_id")
+    member = get_authenticated_member_and_organization()
+    print("member", member)
 
-    # Where to perform the return MFA check?
-    # TODO: Replace member_id with visitor_fingerprint once we have that implemented
-    # Check if the device is known (using member_id as a proxy for device_id)
-    # device_id = resp.member_id
-    # print("device_id:", device_id)
-    # if device_id not in known_devices:
-    #     return redirect(
-    #         url_for("verify_mfa")
-    #     )
+    if member.mfa_phone_number:
+        if telemetry_id:
+            lookup_result = fingerprint_lookup(telemetry_id)
+            visitor_fingerprint = lookup_result["fingerprints"]["visitor_fingerprint"]
+            print("VF", visitor_fingerprint)
+            if visitor_fingerprint == "ALLOW":
+                if visitor_fingerprint not in known_devices:
+                    print("Device not known, sending MFA code")
+                    resp = stytch_client.otps.sms.send(
+                        organization_id=organization_id,
+                        member_id=member.member_id,
+                        mfa_phone_number=member.mfa_phone_number,
+                    )
+
+                    if resp.status_code != 200:
+                        print(resp)
+                        return "Error sending MFA code", 500
+
+                return redirect(url_for("verify_mfa"))
+            else:
+                print("Device already known")
+                return redirect(url_for("index"))
+    else:
+        print("No MFA phone number")
+        return redirect(url_for("enroll_mfa"))
 
     if ist:
         resp = stytch_client.discovery.intermediate_sessions.exchange(
@@ -259,6 +293,7 @@ def switch_orgs():
         discovered_organizations=orgs,
         email_address=resp.email_address,
         is_login=False,
+        public_token=STYTCH_PUBLIC_TOKEN,
     )
 
 
@@ -427,6 +462,7 @@ def authenticate_mfa() -> str:
 @app.route("/optional-mfa-enrollment", methods=["POST"])
 def optional_mfa_enrollment():
     code = request.form.get("code")
+    telemetry_id = request.form.get("telemetry_id")
     member, organization = get_authenticated_member_and_organization()
 
     if member is None or organization is None:
@@ -446,11 +482,9 @@ def optional_mfa_enrollment():
     if resp.status_code != 200:
         return "Error authenticating MFA code"
 
-    # TODO: Replace member_id with visitor_fingerprint once we have that implemented
     # Add device to known devices
-    device_id = member.member_id
-    if device_id:
-        known_devices.append(device_id)
+    if telemetry_id:
+        known_devices.append(telemetry_id)
 
     return redirect(url_for("index"))
 
@@ -483,7 +517,9 @@ def fingerprint_lookup(telemetry_id: str):
 
     if response.status_code == 200:
         resp = response.json()
-        return resp["verdict"]["action"]
+        # verdict_action = resp["verdict"]["action"]
+        # visitor_fingerprint = resp["fingerprints"]["visitor_fingerprint"]
+        return resp
     else:
         return {"error": f"Request failed with status code {response.status_code}"}
 

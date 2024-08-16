@@ -49,8 +49,14 @@
 
     </div>
     <script>
+        const public_token = "{{ public_token }}";
         function selectOrg(organization_id) {
-            window.location.href = `/exchange/${organization_id}`;
+            GetTelemetryID({
+                publicToken: public_token
+            }).then((telemetry_id) => {
+                console.log("telemetry_id", telemetry_id)
+                window.location.href = `/exchange/${organization_id}?telemetry_id=${telemetry_id}`;
+            });
         }
 
         // Get the modal
