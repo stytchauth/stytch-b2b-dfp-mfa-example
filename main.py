@@ -206,46 +206,58 @@ def create_organization():
 def exchange_into_organization(organization_id):
     ist = session.get("ist", None)
     telemetry_id = request.args.get("telemetry_id")
-    member = get_authenticated_member_and_organization()
-    print("member", member)
-
-    if member.mfa_phone_number:
-        if telemetry_id:
-            lookup_result = fingerprint_lookup(telemetry_id)
-            visitor_fingerprint = lookup_result["fingerprints"]["visitor_fingerprint"]
-            print("VF", visitor_fingerprint)
-            if visitor_fingerprint == "ALLOW":
-                if visitor_fingerprint not in known_devices:
-                    print("Device not known, sending MFA code")
-                    resp = stytch_client.otps.sms.send(
-                        organization_id=organization_id,
-                        member_id=member.member_id,
-                        mfa_phone_number=member.mfa_phone_number,
-                    )
-
-                    if resp.status_code != 200:
-                        print(resp)
-                        return "Error sending MFA code", 500
-
-                return redirect(url_for("verify_mfa"))
-            else:
-                print("Device already known")
-                return redirect(url_for("index"))
-    else:
-        print("No MFA phone number")
-        return redirect(url_for("enroll_mfa"))
 
     if ist:
-        resp = stytch_client.discovery.intermediate_sessions.exchange(
-            intermediate_session_token=ist, organization_id=organization_id
-        )
-        if resp.status_code != 200:
-            print(resp)
-            return "Error exchanging IST into Organization", 500
+        organization = get_organization_from_ist(organization_id)
+        if not organization:
+            return "Organization not found", 404
 
-        session.pop("ist", None)
-        session["stytch_session_token"] = resp.session_token
-        return redirect(url_for("index"))
+        member = organization.membership.member
+        print("Member", member)
+
+        if not organization.member_authenticated:
+            if member.mfa_phone_number:
+                if telemetry_id:
+                    lookup_result = fingerprint_lookup(telemetry_id)
+                    visitor_fingerprint = lookup_result["fingerprints"][
+                        "visitor_fingerprint"
+                    ]
+                    verdict_action = lookup_result["verdict"]["action"]
+                    print("VF", visitor_fingerprint)
+                    if verdict_action == "ALLOW":
+                        if visitor_fingerprint not in known_devices:
+                            print("Device not known, sending MFA code")
+                            resp = stytch_client.otps.sms.send(
+                                organization_id=organization_id,
+                                member_id=member.member_id,
+                                mfa_phone_number=member.mfa_phone_number,
+                            )
+
+                            if resp.status_code != 200:
+                                print(resp)
+                                return "Error sending MFA code", 500
+
+                            return redirect(
+                                url_for("verify_mfa", organization_id=organization_id)
+                            )
+                        else:
+                            print("Device already known")
+                            resp = (
+                                stytch_client.discovery.intermediate_sessions.exchange(
+                                    intermediate_session_token=ist,
+                                    organization_id=organization_id,
+                                )
+                            )
+                            if resp.status_code != 200:
+                                print(resp)
+                                return "Error exchanging IST into Organization", 500
+
+                            session.pop("ist", None)
+                            session["stytch_session_token"] = resp.session_token
+                            return redirect(url_for("index"))
+            else:
+                print("No MFA phone number")
+                return redirect(url_for("enroll_mfa"))
 
     session_token = session.get("stytch_session_token")
     if not session_token:
@@ -390,13 +402,23 @@ def enroll_mfa():
 
 @app.route("/verify-mfa", methods=["GET"])
 def verify_mfa():
-    member, organization = get_authenticated_member_and_organization()
+    ist = session.get("ist", None)
+    organization_id = request.args.get("organization_id")
+
+    if ist:
+        organization = get_organization_from_ist(organization_id)
+        print("VMFA - IST Org", organization)
+        if not organization:
+            return "Organization not found", 404
+        member = organization.membership.member
+    else:
+        member, organization = get_authenticated_member_and_organization()
     if member is None or organization is None:
         return redirect(url_for("index"))
 
     return render_template(
         "inputMFACode.html",
-        organization_id=organization.organization_id,
+        organization_id=organization.organization.organization_id,
         member_id=member.member_id,
         form_action=url_for("authenticate_mfa"),
     )
@@ -432,9 +454,11 @@ def start_mfa_enrollment():
 @app.route("/authenticate-mfa", methods=["POST"])
 def authenticate_mfa() -> str:
     code = request.form.get("code", None)
-    member, organization = get_authenticated_member_and_organization()
+    organization_id = request.form.get("organization_id", None)
+    member_id = request.form.get("member_id", None)
+    ist = session.get("ist", None)
 
-    if member is None or organization is None:
+    if member_id is None or organization_id is None:
         return redirect(url_for("index"))
 
     if code is None:
@@ -447,15 +471,16 @@ def authenticate_mfa() -> str:
     resp = stytch_client.otps.sms.authenticate(
         intermediate_session_token=ist,
         code=code,
-        organization_id=organization.organization_id,
-        member_id=member.member_id,
+        organization_id=organization_id,
+        member_id=member_id,
     )
 
     if resp.status_code != 200:
         return "error authenticating mfa", 500
 
+    print("authmfa - pop ist, set session", resp.session_token)
     session.pop("ist", None)
-    session["stytch_session"] = resp.session_token
+    session["stytch_session_token"] = resp.session_token
     return redirect(url_for("index"))
 
 
@@ -487,6 +512,32 @@ def optional_mfa_enrollment():
         known_devices.append(telemetry_id)
 
     return redirect(url_for("index"))
+
+
+def get_organization_from_ist(organization_id):
+    ist = session.get("ist", None)
+
+    if ist:
+        org_list = stytch_client.discovery.organizations.list(
+            intermediate_session_token=ist
+        )
+
+        # find the organization that matches the organization_id
+        organization = next(
+            (
+                org
+                for org in org_list.discovered_organizations
+                if org.organization.organization_id == organization_id
+            ),
+            None,
+        )
+        if not organization:
+            return "Organization not found", 404
+
+        print("IST Organization", organization)
+        return organization
+    else:
+        return None
 
 
 # Helper to retrieve the authenticated Member and Organization context
