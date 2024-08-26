@@ -1,21 +1,23 @@
 {% extends "layout.html" %}
 
-{% block title %}Login{% endblock %}
-{% block header %}<h1>Login to get started</h1>{% endblock %}
+{% block title %}Device Fingerprinting (DFP) Example{% endblock %}
 
 {% block content %}
-    <button onclick="login()">
-          Login
-  </button>
-  <script>
-      const public_token = "{{ public_token }}";
-      function login() {
-            GetTelemetryID({
-                publicToken: public_token
-            }).then((telemetry_id) => {
-                console.log("telemetry_id", telemetry_id)
-                window.location.href = `/login?telemetry_id=${telemetry_id}`;
-            });
-      }
-  </script>
+<div class="container">
+    <h1>DEVICE FINGERPRINTING (DFP) EXAMPLE</h1>
+    <h2>Log in to get started</h2>
+    <button onclick="login()" class="login-button">Log in</button>
+</div>
+
+<script>
+    const public_token = "{{ public_token }}";
+    function login() {
+        GetTelemetryID({
+            publicToken: public_token
+        }).then((telemetry_id) => {
+            console.log("telemetry_id", telemetry_id)
+            window.location.href = `/login?telemetry_id=${telemetry_id}`;
+        });
+    }
+</script>
 {% endblock %}

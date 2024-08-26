@@ -1,16 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename= 'css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <script src="https://elements.stytch.com/telemetry.js"></script>
 </head>
 <body>
-    <div class="card">
-        <div class="card-content">
-            {% block header %}{% endblock %}
-        </div>
+    <header>
+        <nav>
+            <div class="logo">STYTCH DFP(Example)</div>
+            <div class="nav-links">
+                <a href="#">Docs</a>
+                <a href="#">Github</a>
+            </div>
+        </nav>
+    </header>
+    <main>
         {% block content %}{% endblock %}
-    </div>
+    </main>
 </body>
 </html>
