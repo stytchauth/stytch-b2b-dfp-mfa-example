@@ -59,8 +59,8 @@ h2 {
     font-weight: 700;
 }
 
-.login-button {
-    background-color: #1e3a8a;
+.index-login-button {
+    background-color: #19303D;
     color: #ffffff;
     border: none;
     padding: 0.75rem 2rem;
@@ -71,6 +71,59 @@ h2 {
     font-weight: 600;
 }
 
-.login-button:hover {
-    background-color: #1e40af;
+/* discoveryLogin styles */
+
+.login-container {
+    max-width: 400px;
+    margin: 4rem auto;
+    padding: 2rem;
+    background-color: #ffffff;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+.login-container h1 {
+    font-size: 1.5rem;
+    color: #1c1e21;
+    margin-bottom: 1rem;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.login-container p {
+    font-size: 0.9rem;
+    color: #65676b;
+    margin-bottom: 1.5rem;
+}
+
+.input-group {
+    margin-bottom: 1rem;
+}
+
+.input-group input {
+    width: 92%;
+    padding: 0.75rem;
+    font-size: 1rem;
+    border: 1px solid #dddfe2;
+    border-radius: 4px;
+    outline: none;
+}
+
+.input-group input:focus {
+    border-color: #1877f2;
+    box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.2);
+}
+
+.login-button {
+    width: 100%;
+    background-color: #19303D;
+    color: #ffffff;
+    border: none;
+    padding: 0.75rem;
+    font-size: 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    font-weight: 600;
 }

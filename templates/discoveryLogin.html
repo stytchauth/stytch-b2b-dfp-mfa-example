@@ -1,15 +1,16 @@
 {% extends "layout.html" %}
 
 {% block title %}Login{% endblock %}
-{% block header %}<h1>Discovery Sign-up or Login</h1>{% endblock %}
+{% block header %}{% endblock %}
 
 {% block content %}
-<h4>Allows you to view any Organizations you belong to or are eligible to join, or create a new Organization</h4>
 <div class="login-container">
+    <h1>Log in</h1>
     <form action="/send_magic_link" method="POST">
-        <label for="email">Email:</label>
-        <input type="email" id="email" name="email" required>
-        <button type="submit">Send Magic Link</button>
+        <div class="input-group">
+            <input type="email" id="email" name="email" required placeholder="email@example.com">
+        </div>
+        <button type="submit" class="login-button">Continue with email</button>
     </form>
 </div>
 {% endblock %}
