@@ -182,6 +182,12 @@ def create_organization():
 
     session.pop("ist", None)
     session["stytch_session_token"] = resp.session_token
+
+    # After creating the organization, check if MFA enrollment is needed
+    member, organization = get_authenticated_member_and_organization()
+    if member and not member.mfa_enrolled:
+        return redirect(url_for("enroll_mfa"))
+
     return redirect(url_for("index"))
 
 
