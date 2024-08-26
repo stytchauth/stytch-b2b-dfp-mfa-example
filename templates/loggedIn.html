@@ -25,7 +25,6 @@
 {% block content %}
     <button type="submit" onclick="logout()">Logout</button>
     <button type="submit" onclick="switchOrgs()">Switch Organizations</button>
-    <button type="submit" onclick="enrollMFA()">Enroll MFA</button>
     <script>
         function logout() {
             // Redirect to the Flask logout route
@@ -38,10 +37,6 @@
 
         function switchOrgs() {
             window.location.href = `/switch_orgs`;
-        }
-
-        function enrollMFA() {
-            window.location.href = "/enroll-mfa";
         }
     </script>
 {% endblock %}

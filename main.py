@@ -185,19 +185,6 @@ def create_organization():
     return redirect(url_for("index"))
 
 
-# def redirect_based_on_verdict(telemetry_id):
-#     verdictAction = fingerprint_lookup(telemetry_id)
-#     print("VA", verdictAction)
-#     if verdictAction == "ALLOW":
-#         return redirect(url_for("index"))
-#     elif verdictAction == "CHALLENGE":
-#         return redirect(url_for("verify_mfa"))
-#     elif verdictAction == "BLOCK":
-#         return redirect(url_for("oops"))
-#     else:
-#         return "Unsupported verdict action"
-
-
 # After Discovery, users can opt to log into an existing Organization
 # that they belong to or are eligible to join by Email Domain JIT Provision or a pending invite
 # You will exchange the IST returned from the discovery.authenticate() method call
