@@ -14,6 +14,9 @@
             <div class="nav-links">
                 <a href="#">Docs</a>
                 <a href="#">Github</a>
+                {% if member %}
+                    <a class="index-login-button" href="/logout">Logout</a>
+                {% endif %}
             </div>
         </nav>
     </header>

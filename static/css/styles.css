@@ -61,7 +61,7 @@ h2 {
 
 .index-login-button {
     background-color: #19303D;
-    color: #ffffff;
+    color: #ffffff !important;
     border: none;
     padding: 0.75rem 2rem;
     font-size: 1rem;
