@@ -68,11 +68,14 @@ def login() -> str:
         if verdict_action == "ALLOW":
             return render_template("discoveryLogin.html")
         elif verdict_action == "CHALLENGE":
+            # Challenge via reCAPTCHA, etc
             return "Challenge"
         elif verdict_action == "BLOCK":
             return render_template("oops.html")
         else:
             return "Unsupported verdict action"
+    else:
+        return redirect(url_for("index"))
 
 
 @app.route("/logout")
