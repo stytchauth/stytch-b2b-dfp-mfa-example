@@ -15,7 +15,7 @@
                 <a href="#">Docs</a>
                 <a href="#">Github</a>
                 {% if member %}
-                    <a class="index-login-button" href="/logout">Logout</a>
+                    <button onclick="logout()">Logout</button>
                 {% endif %}
             </div>
         </nav>
@@ -23,5 +23,10 @@
     <main>
         {% block content %}{% endblock %}
     </main>
+    <script>
+        function logout() {
+            window.location.href = "/logout";
+        }
+    </script>
 </body>
 </html>

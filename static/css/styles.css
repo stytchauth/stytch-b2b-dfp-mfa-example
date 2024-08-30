@@ -59,7 +59,7 @@ h2 {
     font-weight: 700;
 }
 
-.index-login-button {
+button {
     background-color: #19303D;
     color: #ffffff !important;
     border: none;
