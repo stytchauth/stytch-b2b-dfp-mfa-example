@@ -1,6 +1,8 @@
 import os
 import sys
 
+import logging
+from pprint import pformat
 import dotenv
 import requests
 import stytch
@@ -8,7 +10,7 @@ from stytch.b2b.models.organizations import SearchQuery
 from stytch.b2b.models.organizations import UpdateRequestOptions
 from stytch.shared.method_options import Authorization
 from flask import Flask, request, url_for, session, redirect, render_template
-
+from stytch.core.response_base import StytchError
 
 # load the .env file
 dotenv.load_dotenv()
@@ -39,6 +41,9 @@ stytch_client = stytch.B2BClient(
 
 # create a Flask web app
 app = Flask(__name__)
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 app.secret_key = "some-secret-key"
 
 # In-memory array to store known devices
@@ -60,11 +65,11 @@ def index():
 @app.route("/login", methods=["GET"])
 def login() -> str:
     telemetry_id = request.args.get("telemetry_id")
-    print("telemetry_id", telemetry_id)
+    logger.info("telemetry_id %s", telemetry_id)
     if telemetry_id:
         lookup_result = fingerprint_lookup(telemetry_id)
         verdict_action = lookup_result["verdict"]["action"]
-        print("VA", verdict_action)
+        logger.info("VA %s", verdict_action)
         if verdict_action == "ALLOW":
             return render_template("discoveryLogin.html")
         elif verdict_action == "CHALLENGE":
@@ -219,10 +224,10 @@ def exchange_into_organization(organization_id):
                         "visitor_fingerprint"
                     ]
                     verdict_action = lookup_result["verdict"]["action"]
-                    print("VF", visitor_fingerprint)
+                    logger.info("VF %s", visitor_fingerprint)
                     if verdict_action == "ALLOW":
                         if visitor_fingerprint not in known_devices:
-                            print("Device not known, sending MFA code")
+                            logger.info("Device not known, sending MFA code")
                             resp = stytch_client.otps.sms.send(
                                 organization_id=organization_id,
                                 member_id=member.member_id,
@@ -452,7 +457,10 @@ def authenticate_mfa() -> str:
     code = request.form.get("code", None)
     organization_id = request.form.get("organization_id", None)
     member_id = request.form.get("member_id", None)
+    telemetry_id = request.form.get("telemetry_id", None)
     ist = session.get("ist", None)
+
+    logger.info("authenticate_mfa - telemetry_id %s", telemetry_id)
 
     if member_id is None or organization_id is None:
         return redirect(url_for("index"))
@@ -474,7 +482,13 @@ def authenticate_mfa() -> str:
     if resp.status_code != 200:
         return "error authenticating mfa", 500
 
-    print("authmfa - pop ist, set session", resp.session_token)
+    # Add device to known devices
+    if telemetry_id and telemetry_id not in known_devices:
+        known_devices.append(telemetry_id)
+
+    logger.info("authenticate_mfa - known_devices %s", pformat(known_devices))
+
+    logger.info("authmfa - pop ist, set session %s", resp.session_token)
     session.pop("ist", None)
     session["stytch_session_token"] = resp.session_token
     return redirect(url_for("index"))
@@ -507,6 +521,8 @@ def optional_mfa_enrollment():
     if telemetry_id:
         known_devices.append(telemetry_id)
 
+    logger.info("optional-mfa-enrollment known_devices %s", pformat(known_devices))
+
     return redirect(url_for("index"))
 
 
@@ -530,7 +546,7 @@ def get_organization_from_ist(organization_id):
         if not organization:
             return "Organization not found", 404
 
-        print("IST Organization", organization)
+        logger.info("IST Organization %s", pformat(organization))
         return organization
     else:
         return None
@@ -542,16 +558,17 @@ def get_authenticated_member_and_organization():
     if not stytch_session:
         return None, None
 
-    resp = stytch_client.sessions.authenticate(session_token=stytch_session)
-    print(resp)
-    if resp.status_code != 200:
-        print("Invalid session")
-        session.pop("stytch_session_token")
+    try:
+        resp = stytch_client.sessions.authenticate(session_token=stytch_session)
+        # Remember to reset the cookie session, as sessions.authenticate() will issue a new token
+        session["stytch_session_token"] = resp.session_token
+        return resp.member, resp.organization
+    except StytchError as e:
+        if e.details.error_type == "session_not_found":
+            # Session has expired or is invalid, clear it
+            session.pop("stytch_session_token", None)
+        logger.warning(f"Session authentication failed: {e}")
         return None, None
-
-    # Remember to reset the cookie session, as sessions.authenticate() will issue a new token
-    session["stytch_session_token"] = resp.session_token
-    return resp.member, resp.organization
 
 
 def fingerprint_lookup(telemetry_id: str):
