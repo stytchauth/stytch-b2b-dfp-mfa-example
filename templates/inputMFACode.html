@@ -3,22 +3,10 @@
 <h2>Enter MFA Code</h2>
 <form action="{{ form_action }}" method="post">
     <label for="code">MFA Code:</label>
-    <input type="text" id="code" name="code" required>
-    <input type="hidden" id="telemetry_id" name="telemetry_id">
+    <input type="text" id="code" name="code" required autofocus>
+    <input type="hidden" id="visitor_fingerprint" name="visitor_fingerprint" value="{{ visitor_fingerprint }}">
     <input type="hidden" id="organization_id" name="organization_id" value="{{ organization_id }}">
     <input type="hidden" id="member_id" name="member_id" value="{{ member_id }}">
-    <button onclick="submitForm()">Verify</button>
+    <button type="submit">Verify</button>
 </form>
-<script>
-    const public_token = "{{ public_token }}";
-    function submitForm() {
-          GetTelemetryID({
-              publicToken: public_token
-          }).then((telemetry_id) => {
-              console.log("telemetry_id", telemetry_id)
-              document.getElementById("telemetry_id").value = telemetry_id;
-              document.getElementById("form").submit();
-          });
-    }
-</script>
 {% endblock %}

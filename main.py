@@ -239,7 +239,11 @@ def exchange_into_organization(organization_id):
                                 return "Error sending MFA code", 500
 
                             return redirect(
-                                url_for("verify_mfa", organization_id=organization_id)
+                                url_for(
+                                    "verify_mfa",
+                                    organization_id=organization_id,
+                                    visitor_fingerprint=visitor_fingerprint,
+                                )
                             )
                         else:
                             print("Device already known")
@@ -398,13 +402,14 @@ def enable_jit():
 
 @app.route("/enroll-mfa", methods=["GET"])
 def enroll_mfa():
-    return render_template("enrollMFA.html")
+    return render_template("enrollMFA.html", public_token=STYTCH_PUBLIC_TOKEN)
 
 
 @app.route("/verify-mfa", methods=["GET"])
 def verify_mfa():
     ist = session.get("ist", None)
     organization_id = request.args.get("organization_id")
+    visitor_fingerprint = request.args.get("visitor_fingerprint")
 
     if ist:
         organization = get_organization_from_ist(organization_id)
@@ -422,17 +427,19 @@ def verify_mfa():
         organization_id=organization.organization.organization_id,
         member_id=member.member_id,
         form_action=url_for("authenticate_mfa"),
+        visitor_fingerprint=visitor_fingerprint,
     )
 
 
 @app.route("/start-mfa-enrollment", methods=["POST"])
 def start_mfa_enrollment():
     phone = request.form.get("phone")
+    telemetry_id = request.form.get("telemetry_id")
     member, organization = get_authenticated_member_and_organization()
     if member is None or organization is None:
         return redirect(url_for("index"))
 
-    if not phone:
+    if not phone or not telemetry_id:
         return "Missing required field", 400
 
     resp = stytch_client.otps.sms.send(
@@ -444,11 +451,14 @@ def start_mfa_enrollment():
     if resp.status_code != 200:
         return "Error sending MFA code"
 
+    visitor_fingerprint = get_visitor_fingerprint(telemetry_id)
+
     return render_template(
         "inputMFACode.html",
         organization_id=organization.organization_id,
         member_id=member.member_id,
         form_action=url_for("optional_mfa_enrollment"),
+        visitor_fingerprint=visitor_fingerprint,
     )
 
 
@@ -457,10 +467,10 @@ def authenticate_mfa() -> str:
     code = request.form.get("code", None)
     organization_id = request.form.get("organization_id", None)
     member_id = request.form.get("member_id", None)
-    telemetry_id = request.form.get("telemetry_id", None)
+    visitor_fingerprint = request.form.get("visitor_fingerprint", None)
     ist = session.get("ist", None)
 
-    logger.info("authenticate_mfa - telemetry_id %s", telemetry_id)
+    logger.info("authenticate_mfa - visitor_fingerprint %s", visitor_fingerprint)
 
     if member_id is None or organization_id is None:
         return redirect(url_for("index"))
@@ -483,10 +493,7 @@ def authenticate_mfa() -> str:
         return "error authenticating mfa", 500
 
     # Add device to known devices
-    if telemetry_id and telemetry_id not in known_devices:
-        known_devices.append(telemetry_id)
-
-    logger.info("authenticate_mfa - known_devices %s", pformat(known_devices))
+    add_device_to_known_devices(visitor_fingerprint)
 
     logger.info("authmfa - pop ist, set session %s", resp.session_token)
     session.pop("ist", None)
@@ -497,7 +504,7 @@ def authenticate_mfa() -> str:
 @app.route("/optional-mfa-enrollment", methods=["POST"])
 def optional_mfa_enrollment():
     code = request.form.get("code")
-    telemetry_id = request.form.get("telemetry_id")
+    visitor_fingerprint = request.form.get("visitor_fingerprint")
     member, organization = get_authenticated_member_and_organization()
 
     if member is None or organization is None:
@@ -518,8 +525,7 @@ def optional_mfa_enrollment():
         return "Error authenticating MFA code"
 
     # Add device to known devices
-    if telemetry_id:
-        known_devices.append(telemetry_id)
+    add_device_to_known_devices(visitor_fingerprint)
 
     logger.info("optional-mfa-enrollment known_devices %s", pformat(known_devices))
 
@@ -583,9 +589,29 @@ def fingerprint_lookup(telemetry_id: str):
         resp = response.json()
         # verdict_action = resp["verdict"]["action"]
         # visitor_fingerprint = resp["fingerprints"]["visitor_fingerprint"]
+        logger.info("Fingerprint lookup result: %s", pformat(resp))
         return resp
     else:
         return {"error": f"Request failed with status code {response.status_code}"}
+
+
+def get_visitor_fingerprint(telemetry_id: str) -> str:
+    try:
+        lookup_result = fingerprint_lookup(telemetry_id)
+        return lookup_result["fingerprints"]["visitor_fingerprint"]
+    except KeyError:
+        logger.error("Failed to get visitor_fingerprint from lookup result")
+        return ""
+    except Exception as e:
+        logger.error(f"Error getting visitor_fingerprint: {e}")
+        return ""
+
+
+def add_device_to_known_devices(visitor_fingerprint: str):
+    if visitor_fingerprint:
+        if visitor_fingerprint and visitor_fingerprint not in known_devices:
+            known_devices.append(visitor_fingerprint)
+        logger.info("Known devices updated: %s", pformat(known_devices))
 
 
 # run's the app on the provided host & port
