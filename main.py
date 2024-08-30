@@ -53,6 +53,8 @@ known_devices = []
 @app.route("/")
 def index():
     member, organization = get_authenticated_member_and_organization()
+    logger.info("index - Member %s", member)
+    logger.info("index - Organization %s", organization)
     if member and organization:
         return render_template(
             "loggedIn.html", member=member, organization=organization
@@ -246,13 +248,18 @@ def exchange_into_organization(organization_id):
                                 )
                             )
                         else:
-                            print("Device already known")
+                            logger.info("Device already known")
+                            logger.info("Exchanging IST into Organization")
+
                             resp = (
                                 stytch_client.discovery.intermediate_sessions.exchange(
-                                    intermediate_session_token=ist,
                                     organization_id=organization_id,
+                                    intermediate_session_token=ist,
                                 )
                             )
+
+                            logger.info("IST Exchange Response: %s", resp)
+
                             if resp.status_code != 200:
                                 print(resp)
                                 return "Error exchanging IST into Organization", 500
