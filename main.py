@@ -218,55 +218,55 @@ def exchange_into_organization(organization_id):
         member = organization.membership.member
         print("Member", member)
 
-        if not organization.member_authenticated:
+        if telemetry_id:
+            lookup_result = fingerprint_lookup(telemetry_id)
+            visitor_fingerprint = lookup_result["fingerprints"]["visitor_fingerprint"]
+            verdict_action = lookup_result["verdict"]["action"]
+            logger.info("VF %s", visitor_fingerprint)
+
+        if (
+            not organization.member_authenticated
+            or visitor_fingerprint not in known_devices
+        ):
             if member.mfa_phone_number:
-                if telemetry_id:
-                    lookup_result = fingerprint_lookup(telemetry_id)
-                    visitor_fingerprint = lookup_result["fingerprints"][
-                        "visitor_fingerprint"
-                    ]
-                    verdict_action = lookup_result["verdict"]["action"]
-                    logger.info("VF %s", visitor_fingerprint)
-                    if verdict_action == "ALLOW":
-                        if visitor_fingerprint not in known_devices:
-                            logger.info("Device not known, sending MFA code")
-                            resp = stytch_client.otps.sms.send(
+                if verdict_action == "ALLOW":
+                    if visitor_fingerprint not in known_devices:
+                        logger.info("Device not known, sending MFA code")
+                        resp = stytch_client.otps.sms.send(
+                            organization_id=organization_id,
+                            member_id=member.member_id,
+                            mfa_phone_number=member.mfa_phone_number,
+                        )
+
+                        if resp.status_code != 200:
+                            print(resp)
+                            return "Error sending MFA code", 500
+
+                        return redirect(
+                            url_for(
+                                "verify_mfa",
                                 organization_id=organization_id,
-                                member_id=member.member_id,
-                                mfa_phone_number=member.mfa_phone_number,
+                                visitor_fingerprint=visitor_fingerprint,
                             )
+                        )
+                    else:
+                        logger.info("Device already known")
+                        logger.info("Exchanging IST into Organization")
 
-                            if resp.status_code != 200:
-                                print(resp)
-                                return "Error sending MFA code", 500
+                        resp = stytch_client.discovery.intermediate_sessions.exchange(
+                            organization_id=organization_id,
+                            intermediate_session_token=ist,
+                        )
 
-                            return redirect(
-                                url_for(
-                                    "verify_mfa",
-                                    organization_id=organization_id,
-                                    visitor_fingerprint=visitor_fingerprint,
-                                )
-                            )
-                        else:
-                            logger.info("Device already known")
-                            logger.info("Exchanging IST into Organization")
+                        logger.info("IST Exchange Response: %s", resp)
 
-                            resp = (
-                                stytch_client.discovery.intermediate_sessions.exchange(
-                                    organization_id=organization_id,
-                                    intermediate_session_token=ist,
-                                )
-                            )
+                        if resp.status_code != 200:
+                            print(resp)
+                            return "Error exchanging IST into Organization", 500
 
-                            logger.info("IST Exchange Response: %s", resp)
-
-                            if resp.status_code != 200:
-                                print(resp)
-                                return "Error exchanging IST into Organization", 500
-
-                            session.pop("ist", None)
-                            session["stytch_session_token"] = resp.session_token
-                            return redirect(url_for("index"))
+                        session.pop("ist", None)
+                        session["stytch_session_token"] = resp.session_token
+                        return redirect(url_for("index"))
             else:
                 print("No MFA phone number")
                 return redirect(url_for("enroll_mfa"))
@@ -307,6 +307,7 @@ def exchange_into_organization(organization_id):
 @app.route("/switch_orgs")
 def switch_orgs():
     session_token = session.get("stytch_session_token", None)
+    logger.info("Switching orgs with session token %s", session_token)
     if session_token is None:
         return redirect(url_for("index"))
 
