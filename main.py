@@ -270,6 +270,21 @@ def exchange_into_organization(organization_id):
             else:
                 print("No MFA phone number")
                 return redirect(url_for("enroll_mfa"))
+        else:
+            print("Member already authenticated")
+            resp = stytch_client.discovery.intermediate_sessions.exchange(
+                organization_id=organization_id,
+                intermediate_session_token=ist,
+            )
+            logger.info("IST Exchange Response: %s", resp)
+
+            if resp.status_code != 200:
+                print(resp)
+                return "Error exchanging IST into Organization", 500
+
+            session.pop("ist", None)
+            session["stytch_session_token"] = resp.session_token
+            return redirect(url_for("index"))
 
     session_token = session.get("stytch_session_token")
     if not session_token:
@@ -525,7 +540,7 @@ def optional_mfa_enrollment():
         code=code,
         organization_id=organization.organization_id,
         member_id=member.member_id,
-        set_mfa_enrollment="enroll",
+        set_mfa_enrollment="unenroll",
     )
 
     if resp.status_code != 200:
