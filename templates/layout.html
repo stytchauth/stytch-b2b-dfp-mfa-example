@@ -8,21 +8,23 @@
     <script src="https://elements.stytch.com/telemetry.js"></script>
 </head>
 <body>
-    <header>
-        <nav>
-            <div class="logo"><a href="/">STYTCH DFP(Example)</a></div>
-            <div class="nav-links">
-                <a href="#">Docs</a>
-                <a href="#">Github</a>
-                {% if member %}
-                    <button onclick="logout()">Logout</button>
-                {% endif %}
-            </div>
-        </nav>
-    </header>
-    <main>
-        {% block content %}{% endblock %}
-    </main>
+    <div class="page-container">
+        <header>
+            <nav>
+                <div class="logo"><a href="/">STYTCH DFP(Example)</a></div>
+                <div class="nav-links">
+                    <a href="#">Docs</a>
+                    <a href="#">Github</a>
+                    {% if member %}
+                        <button onclick="logout()">Logout</button>
+                    {% endif %}
+                </div>
+            </nav>
+        </header>
+        <main class="content-container">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
     <script>
         function logout() {
             window.location.href = "/logout";
