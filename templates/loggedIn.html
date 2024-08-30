@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 
 {% block title %}Dashboard{% endblock %}
-{% block header %}
+{% block content %}
     <h1>
         Welcome to {{ organization.organization_name }}
     </h1>
@@ -20,17 +20,9 @@
     <p>Email: {{ member.email_address }}</p>
     <p>Admin Role: {{ member.is_admin }}</p>
 
-{% endblock %}
 
-{% block content %}
-    <button type="submit" onclick="logout()">Logout</button>
     <button type="submit" onclick="switchOrgs()">Switch Organizations</button>
     <script>
-        function logout() {
-            // Redirect to the Flask logout route
-            window.location.href = `/logout`;
-        }
-
         function enableJIT() {
             window.location.href = `/enable_jit`;
         }
