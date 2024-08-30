@@ -2,6 +2,7 @@
 
 {% block title %}Dashboard{% endblock %}
 {% block content %}
+<div class="dashboard-container">
     <h1>
         Welcome to {{ organization.organization_name }}
     </h1>
@@ -22,7 +23,8 @@
 
 
     <button type="submit" onclick="switchOrgs()">Switch Organizations</button>
-    <script>
+</div>
+<script>
         function enableJIT() {
             window.location.href = `/enable_jit`;
         }
@@ -30,5 +32,5 @@
         function switchOrgs() {
             window.location.href = `/switch_orgs`;
         }
-    </script>
+</script>
 {% endblock %}

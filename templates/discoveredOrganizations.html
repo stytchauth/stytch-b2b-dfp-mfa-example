@@ -6,9 +6,13 @@
 {% endblock %}
 
 {% block content %}
+    <div class="content-container">
     {% if is_login %}
-        <p>If you have any existing memberships, pending invitations, or Organizations you can join through Just-In-Time (JIT) Provisioning they will be displayed here.<br/>Otherwise you can create a new Organization</p>
+        <h2>Existing memberships, pending invitations, or Organizations</h2>
+        <p>(you can join through Just-In-Time (JIT) Provisioning)</p>
+        <p>Otherwise you can create a new Organization</p>
     {% else %}
+        <h2>Switch Organizations</h2>
         <p>Stytch allows users to switch between Organizations that they have active or pending Memberships, without needing to re-authenticate</p>
     {% endif %}
     <div class="button-container">
@@ -18,11 +22,9 @@
             </button>
         {% endfor %}
         {% if discovered_organizations %}
-        <div class="divider">
-            <hr class="line" />
-        </div>
         {% endif %}
         {% if is_login %}
+        <span>OR</span>
         <button id="btnCreateOrg">
             Create New Organization
          </button>
@@ -47,6 +49,7 @@
             </form>
         </div>
 
+    </div>
     </div>
     <script>
         const public_token = "{{ public_token }}";
