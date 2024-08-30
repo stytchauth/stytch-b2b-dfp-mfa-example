@@ -11,10 +11,15 @@
     <div class="page-container">
         <header>
             <nav>
-                <div class="logo"><a href="/">STYTCH DFP(Example)</a></div>
+                <div class="logoContainer">
+                    <img src="{{ url_for('static', filename='stytch.svg') }}" alt="Stytch Logo" class="logo">
+                    <div class="logoText">
+                        <a href="/" class="logo-link">Adaptive DFP(Example)</a>
+                    </div>
+                </div>
                 <div class="nav-links">
-                    <a href="#">Docs</a>
-                    <a href="#">Github</a>
+                    <a href="https://stytch.com/docs/fraud/guides" target="_blank">Docs</a>
+                    <a href="https://github.com/stytchauth/stytch-b2b-dfp-mfa-example" target="_blank">Github</a>
                     {% if member %}
                         <button onclick="logout()">Logout</button>
                     {% endif %}

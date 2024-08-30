@@ -42,10 +42,34 @@ nav {
     margin: 0 auto;
 }
 
+.logoContainer {
+    display: flex;
+    gap: 8px;
+    font-size: 28px;
+    color: #179f97;
+    font-weight: 600;
+    line-height: 100%;
+    margin: auto 0;
+}
+  
 .logo {
-    font-weight: bold;
-    font-size: 1.2rem;
-    color: #1c1e21;
+    aspect-ratio: 5.26;
+    object-fit: auto;
+    object-position: center;
+    width: 108px;
+    max-width: 100%;
+    margin: auto 0;
+}
+
+.logo-link {
+    text-decoration: none;
+    color: inherit;
+}
+
+.logo-link:hover,
+.logo-link:active,
+.logo-link:focus {
+    text-decoration: none;
 }
 
 .nav-links a, .nav-links button {
