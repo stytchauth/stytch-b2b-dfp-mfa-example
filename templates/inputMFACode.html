@@ -1,12 +1,41 @@
 {% extends "layout.html" %}
 {% block content %}
 <h2>Enter MFA Code</h2>
-<form action="{{ form_action }}" method="post">
+<form id="mfaInputForm">
     <label for="code">MFA Code:</label>
     <input type="text" id="code" name="code" required autofocus>
-    <input type="hidden" id="visitor_fingerprint" name="visitor_fingerprint" value="{{ visitor_fingerprint }}">
     <input type="hidden" id="organization_id" name="organization_id" value="{{ organization_id }}">
     <input type="hidden" id="member_id" name="member_id" value="{{ member_id }}">
     <button type="submit">Verify</button>
 </form>
+<script>
+    var publicToken = "{{ public_token }}";
+    var organizationID = "{{ organization_id }}";
+
+    document.getElementById('mfaInputForm').addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        const code = document.getElementById('code').value;
+        GetTelemetryID().then(telemetry_id => {
+            fetch('/authenticate-mfa-code', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Telemetry-ID': telemetry_id
+                },
+                body: JSON.stringify({ code: code, organization_id:  organizationID}),
+            })
+            .then(response => {
+                if (response.redirected) {
+                    window.location.href = response.url;
+                } else {
+                    return response.json();
+                }
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+        });
+        });
+</script>
 {% endblock %}

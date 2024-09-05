@@ -1,16 +1,15 @@
-# Stytch B2B with Python Flask with MFA and DFP
-Quickstart example app covering the basics for getting up and running with B2B authentication:
-* Email Magic Links
-* Sessions
-* RBAC
+# Stytch B2B DFP Adaptive MFA Example
+This example app shows how to leverage Stytch's Device Fingerprinting (DFP) product to power adaptive MFA, only stepping users up to MFA when they log in from a new device.
+
+In order to run this example app you need to have signed up for a Stytch account, and request access to our DFP product (a step we require for security purposes).
 
 ## Get Started
 Ensure you have pip, python and virtualenv installed
 
 #### 1. Clone the repository.
 ```
-git clone https://github.com/stytchauth/stytch-b2b-flask-magic-links.git
-cd stytch-b2b-flask-magic-links
+git clone https://github.com/stytchauth/stytch-b2b-dfp-mfa-example.git
+cd stytch-b2b-dfp-mfa-example
 ```
 
 #### 2. Setup a virtualenv

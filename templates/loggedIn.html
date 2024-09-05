@@ -21,16 +21,10 @@
     <p>Email: {{ member.email_address }}</p>
     <p>Admin Role: {{ member.is_admin }}</p>
 
-
-    <button type="submit" onclick="switchOrgs()">Switch Organizations</button>
 </div>
 <script>
         function enableJIT() {
             window.location.href = `/enable_jit`;
-        }
-
-        function switchOrgs() {
-            window.location.href = `/switch_orgs`;
         }
 </script>
 {% endblock %}

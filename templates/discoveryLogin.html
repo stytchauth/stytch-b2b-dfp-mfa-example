@@ -4,13 +4,45 @@
 {% block header %}{% endblock %}
 
 {% block content %}
+<h1>DEVICE FINGERPRINTING (DFP) EXAMPLE</h1>
 <div class="login-container">
-    <h1>Log in</h1>
-    <form action="/send_magic_link" method="POST">
+    <form id="loginForm">
+        <h2>Log in to get started</h2>
         <div class="input-group">
             <input type="email" id="email" name="email" required placeholder="email@example.com">
         </div>
         <button type="submit" class="login-button">Continue with email</button>
     </form>
 </div>
+
+<script>
+    var publicToken = "{{ public_token }}";
+
+    document.getElementById('loginForm').addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        const email = document.getElementById('email').value;
+        GetTelemetryID().then(telemetry_id => {
+            fetch(`/send_magic_link`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Telemetry-ID': telemetry_id
+                },
+                body: JSON.stringify({ email: email }),
+            })
+            .then(response => {
+                if (response.redirected) {
+                    window.location.href = response.url;
+                } else {
+                    return response.json();
+                }
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+        });
+        });
+</script>
+
 {% endblock %}
