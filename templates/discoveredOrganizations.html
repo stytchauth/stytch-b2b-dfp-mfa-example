@@ -7,14 +7,10 @@
 
 {% block content %}
     <div class="content-container">
-    {% if is_login %}
         <h2>Existing memberships, pending invitations, or Organizations</h2>
         <p>(you can join through Just-In-Time (JIT) Provisioning)</p>
         <p>Otherwise you can create a new Organization</p>
-    {% else %}
-        <h2>Switch Organizations</h2>
-        <p>Stytch allows users to switch between Organizations that they have active or pending Memberships, without needing to re-authenticate</p>
-    {% endif %}
+
     <div class="button-container">
         {% for organization in discovered_organizations %}
             <button onclick="selectOrg('{{ organization.organization_id }}')">
@@ -57,9 +53,24 @@
             GetTelemetryID({
                 publicToken: public_token
             }).then((telemetry_id) => {
-                console.log("telemetry_id", telemetry_id)
-                window.location.href = `/exchange/${organization_id}?telemetry_id=${telemetry_id}`;
+                fetch(`/exchange/${organization_id}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Telemetry-ID': telemetry_id
+                }
+            })
+            .then(response => {
+                if (response.redirected) {
+                    window.location.href = response.url;
+                } else {
+                    return response.json();
+                }
+            })
+            .catch((error) => {
+                console.error('Error:', error);
             });
+        })
         }
 
         // Get the modal

@@ -6,7 +6,6 @@ from pprint import pformat
 import dotenv
 import requests
 import stytch
-from stytch.b2b.models.organizations import SearchQuery
 from stytch.b2b.models.organizations import UpdateRequestOptions
 from stytch.shared.method_options import Authorization
 from flask import Flask, request, url_for, session, redirect, render_template
@@ -47,125 +46,101 @@ logger = logging.getLogger(__name__)
 app.secret_key = "some-secret-key"
 
 # In-memory array to store known devices
-known_devices = []
-
+# MemberID is key, value is array of VisitorFingerprints
+known_devices = {}
 
 @app.route("/")
 def index():
     member, organization = get_authenticated_member_and_organization()
-    logger.info("index - Member %s", member)
-    logger.info("index - Organization %s", organization)
     if member and organization:
+        logger.info("Active Session Found")
+        logger.info(f"Session Member -- {member.email_address} | {member.member_id} \nSession Org -- {organization.organization_name} | {organization.organization_id}")
         return render_template(
             "loggedIn.html", member=member, organization=organization
         )
 
-    return render_template("index.html", public_token=STYTCH_PUBLIC_TOKEN)
-
-
-# Login route
-@app.route("/login", methods=["GET"])
-def login() -> str:
-    telemetry_id = request.args.get("telemetry_id")
-    logger.info("telemetry_id %s", telemetry_id)
-    if telemetry_id:
-        lookup_result = fingerprint_lookup(telemetry_id)
-        verdict_action = lookup_result["verdict"]["action"]
-        logger.info("VA %s", verdict_action)
-        if verdict_action == "ALLOW":
-            return render_template("discoveryLogin.html")
-        elif verdict_action == "CHALLENGE":
-            # Challenge via reCAPTCHA, etc
-            return "Challenge"
-        elif verdict_action == "BLOCK":
-            return render_template("oops.html")
-        else:
-            return "Unsupported verdict action"
-    else:
-        return redirect(url_for("index"))
-
+    logger.info("No active session -- prompting to login")
+    return render_template("discoveryLogin.html", public_token=STYTCH_PUBLIC_TOKEN)
 
 @app.route("/logout")
 def logout():
     session.pop("stytch_session_token", None)
     return redirect(url_for("index"))
 
-
-# Example of initiating Magic Link authentication
-# Magic Links can be used for "Discovery Sign-up or Login" (no OrgID passed)
-# OR "Organization Login" (with an OrgID passed)
-# You can read more about these differences here: https://stytch.com/docs/b2b/guides/login-flows
+# Example of initiating discovery magic link authentication
+# from a central login page and protecting this flow from attackers
+# by using Stytch's Device Fingerprinting product
 @app.route("/send_magic_link", methods=["POST"])
 def send_eml():
-    email = request.form.get("email", None)
+
+    data = request.get_json()
+    email = data.get("email", None)
     if email is None:
-        return "Email is required", 400
+        logger.error("Email not included")
+        return redirect(url_for("oops"))
+    
+    # Use DFP lookup response to proactively block fraudulent traffic from attempting to login
+    telemetry_id = request.headers.get('X-Telemetry-ID', '')
+    data = fingerprint_lookup(telemetry_id)
+    if data is None:
+        logger.error("DFP Lookup of TelemetryID failed.")
+        return redirect(url_for("oops"))
 
-    organization_id = request.form.get("organization_id", None)
-    if organization_id is None:
-        resp = stytch_client.magic_links.email.discovery.send(email_address=email)
-        if resp.status_code != 200:
-            print(resp)
-            return "Error sending discovery magic link!", 500
-        return render_template("emailSent.html")
+    verdict_action = data.get('verdict', {}).get('action', '')
+    if verdict_action == 'BLOCK':
+        logger.info("DFP Verdict Action is BLOCK -- returning success page to obfuscate fingerprint block")
+        return redirect(url_for("email_sent"))
+    if verdict_action == 'CHALLENGE':
+        logger.info("DFP Verdict Action is CHALLENGE -- will require step-up MFA even if known device")
+    
+    try:
+        stytch_client.magic_links.email.discovery.send(email_address=email)
+    except StytchError as e:
+        logger.error(f"Error sending discovery magic link: {e.details}")
+        return redirect(url_for("oops"))
 
-    resp = stytch_client.magic_links.email.login_or_signup(
-        email_address=email, organization_id=organization_id
-    )
-    if resp.status_code != 200:
-        print(resp)
-        return "Error sending organization magic link!", 500
-    return render_template("emailSent.html")
+    return redirect(url_for("email_sent"))
 
 
-# Example of completing multi-step auth flow
-# For these flows Stytch will call the Redirect URL specified in your dashboard
-# with an auth token and stytch_token_type that allow you to complete the flow
+# Your default Redirect URL for discovery login
+# This Redirect URL is automatically called by Stytch when the user clicks on the magic link to authenticate
+# and allows you to securely exchange the authentication token for an intermediate_session_token
+# and information about the Organizations the user can log into
 # Read more about Redirect URLs and Token Types here: https://stytch.com/docs/b2b/guides/dashboard/redirect-urls
 @app.route("/authenticate", methods=["GET"])
 def authenticate():
     token_type = request.args["stytch_token_type"]
     token = request.args["token"]
 
-    if token_type == "discovery":
+    if token_type != "discovery":
+        logger.error("Unsupported token type")
+        return redirect(url_for("oops"))
+    try:
         resp = stytch_client.magic_links.discovery.authenticate(
             discovery_magic_links_token=token
         )
-        if resp.status_code != 200:
-            print(resp)
-            return "Error authenticating discovery magic link", 500
+    except StytchError as e:
+        logger.error(f"Error authenticating magic link token: {e.details}")
+        return redirect(url_for("oops"))
 
-        # The intermediate_session_token (IST) allows you to persist authentication state
-        # while you present the user with the Organizations they can log into, or the option to create a new Organization
-        session["ist"] = resp.intermediate_session_token
-        orgs = []
-        for discovered in resp.discovered_organizations:
-            org = {
-                "organization_id": discovered.organization.organization_id,
-                "organization_name": discovered.organization.organization_name,
-            }
-            orgs.append(org)
+    # The intermediate_session_token (IST) allows you to persist authentication state
+    # while you present the user with the Organizations they can log into, or the option to create a new Organization
+    session["ist"] = resp.intermediate_session_token
+    orgs = []
+    for discovered in resp.discovered_organizations:
+        org = {
+            "organization_id": discovered.organization.organization_id,
+            "organization_name": discovered.organization.organization_name,
+        }
+        orgs.append(org)
 
-        return render_template(
-            "discoveredOrganizations.html",
-            discovered_organizations=orgs,
-            email_address=resp.email_address,
-            is_login=True,
-            public_token=STYTCH_PUBLIC_TOKEN,
-        )
-
-    elif token_type == "multi_tenant_magic_links":
-        resp = stytch_client.magic_links.authenticate(magic_links_token=token)
-        if resp.status_code != 200:
-            print(resp)
-            return "Error authenticating organization magic link", 500
-
-        session["stytch_session_token"] = resp.session_token
-
-        return redirect(url_for("index"))
-    else:
-        return "Unsupported auth method", 500
-
+    return render_template(
+        "discoveredOrganizations.html",
+        discovered_organizations=orgs,
+        email_address=resp.email_address,
+        is_login=True,
+        public_token=STYTCH_PUBLIC_TOKEN,
+    )
 
 # Example of creating a new Organization after Discovery authentication
 # To test, select "Create New Organization" and input a name and slug for your new org
@@ -176,216 +151,221 @@ def authenticate():
 def create_organization():
     ist = session.get("ist")
     if not ist:
-        return "IST required to create an Organization", 400
+        logger.error("IST required to create an Organization")
+        return redirect(url_for("oops"))
 
     org_name = request.form.get("org_name", "")
     org_slug = request.form.get("org_slug", "")
     clean_org_slug = org_slug.replace(" ", "-")
 
-    resp = stytch_client.discovery.organizations.create(
-        intermediate_session_token=ist,
-        organization_name=org_name,
-        organization_slug=clean_org_slug,
-    )
-    if resp.status_code != 200:
-        return "Error creating org"
+    try:
+        resp = stytch_client.discovery.organizations.create(
+            intermediate_session_token=ist,
+            organization_name=org_name,
+            organization_slug=clean_org_slug,
+        )
+    except StytchError as e:
+        logger.error(f"Error creating organization: {e.details}")
+        return redirect(url_for("oops"))
 
-    session.pop("ist", None)
+    # New Organizations have an OPTIONAL MFA Policy by default
+    # Set the Member's session in cookies and prompt them to enroll in MFA
+    session.pop("ist")
     session["stytch_session_token"] = resp.session_token
+    return redirect(url_for("enroll_mfa_prompt"))
 
-    # After creating the organization, check if MFA enrollment is needed
-    member, organization = get_authenticated_member_and_organization()
-    if member and not member.mfa_enrolled:
-        return redirect(url_for("enroll_mfa"))
-
-    return redirect(url_for("index"))
-
-
-# After Discovery, users can opt to log into an existing Organization
-# that they belong to or are eligible to join by Email Domain JIT Provision or a pending invite
+# During the Discovery flow users can opt to log into an existing Organization that 
+# they are an active member of, have a pending invite, or are eligible to join based 
+# on their verified email domain
 # You will exchange the IST returned from the discovery.authenticate() method call
 # to complete the login process
-@app.route("/exchange/<string:organization_id>")
+@app.route("/exchange/<string:organization_id>", methods=["POST"])
 def exchange_into_organization(organization_id):
-    ist = session.get("ist", None)
-    telemetry_id = request.args.get("telemetry_id")
 
-    if ist:
-        organization = get_organization_from_ist(organization_id)
-        if not organization:
-            return "Organization not found", 404
+    discovered_organization = get_discovered_organization(organization_id)
+    if discovered_organization is None:
+        logger.info("Discovered organization not found, unable to exchange into Organization")
+        return redirect(url_for("oops"))
+    
+    member = discovered_organization.membership.member
 
-        member = organization.membership.member
-        print("Member", member)
+    if not discovered_organization.member_authenticated and discovered_organization.mfa_required:
+        logger.info("Organization MFA Policy is REQUIRED_FOR_ALL. User is required to complete MFA regardless of device.")
+        return redirect(url_for("mfa_otp_prompt", organization_id=organization_id))
 
-        if telemetry_id:
-            lookup_result = fingerprint_lookup(telemetry_id)
-            visitor_fingerprint = lookup_result["fingerprints"]["visitor_fingerprint"]
-            verdict_action = lookup_result["verdict"]["action"]
-            logger.info("VF %s", visitor_fingerprint)
-
-        if (
-            not organization.member_authenticated
-            or visitor_fingerprint not in known_devices
-        ):
-            if member.mfa_phone_number:
-                if verdict_action == "ALLOW":
-                    if visitor_fingerprint not in known_devices:
-                        logger.info("Device not known, sending MFA code")
-                        resp = stytch_client.otps.sms.send(
-                            organization_id=organization_id,
-                            member_id=member.member_id,
-                            mfa_phone_number=member.mfa_phone_number,
-                        )
-
-                        if resp.status_code != 200:
-                            print(resp)
-                            return "Error sending MFA code", 500
-
-                        return redirect(
-                            url_for(
-                                "verify_mfa",
-                                organization_id=organization_id,
-                                visitor_fingerprint=visitor_fingerprint,
-                            )
-                        )
-                    else:
-                        logger.info("Device already known")
-                        logger.info("Exchanging IST into Organization")
-
-                        resp = stytch_client.discovery.intermediate_sessions.exchange(
-                            organization_id=organization_id,
-                            intermediate_session_token=ist,
-                        )
-
-                        logger.info("IST Exchange Response: %s", resp)
-
-                        if resp.status_code != 200:
-                            print(resp)
-                            return "Error exchanging IST into Organization", 500
-
-                        session.pop("ist", None)
-                        session["stytch_session_token"] = resp.session_token
-                        return redirect(url_for("index"))
-            else:
-                print("No MFA phone number")
-                return redirect(url_for("enroll_mfa"))
-        else:
-            print("Member already authenticated")
-            resp = stytch_client.discovery.intermediate_sessions.exchange(
+    # Handle case where user is JIT Provisioning into an Organization with an OPTIONAL MFA policy
+    # Prompt to enroll in adaptive MFA
+    if discovered_organization.membership.type == 'eligible_to_join_by_email_domain':
+        logger.info(f"JIT Provisioning into OrgID: {discovered_organization.organization.organization_id}")
+        ist = session.get('ist', None)
+        try:
+            stytch_client.discovery.intermediate_sessions.exchange(
                 organization_id=organization_id,
                 intermediate_session_token=ist,
             )
-            logger.info("IST Exchange Response: %s", resp)
+        except StytchError as e:
+            logger.error(f"Unable to exchange IST for Org Session when JIT Provisioning: {e.details}")
+            return redirect(url_for("oops"))
+        
+        return redirect(url_for("enroll_mfa_prompt"))
 
-            if resp.status_code != 200:
-                print(resp)
-                return "Error exchanging IST into Organization", 500
+    if not member.mfa_phone_number:
+        logger.info("MFA not required for Organization and Member has not opted into adaptive MFA. Logging in.")
+        return exchange_ist_for_org_session(organization_id)
+    
+    # Handle case where member is enrolled in adaptive MFA
+    # First check to see if current device is a known device for the member
+    telemetry_id = request.headers.get('X-Telemetry-ID', '')
+    data = fingerprint_lookup(telemetry_id)
+    if data:
+        verdict_action = data.get('verdict', {}).get('action', '')
+        visitor_fingerprint = data.get('fingerprints', {}).get('visitor_fingerprint', None)
+        known_devices_for_member = known_devices.get(member.member_id, set())
 
-            session.pop("ist", None)
-            session["stytch_session_token"] = resp.session_token
-            return redirect(url_for("index"))
+        is_known_device = visitor_fingerprint in known_devices_for_member
+        logger.info(f"VisitorFingerprint: {visitor_fingerprint} | Is Known: {is_known_device} | Verdict Action: {verdict_action}")
 
-    session_token = session.get("stytch_session_token")
-    if not session_token:
-        return "Either IST or Session Token required", 400
-
-    resp = stytch_client.sessions.exchange(
-        organization_id=organization_id, session_token=session_token
-    )
-    if resp.status_code != 200:
-        return "Error exchanging Session Token into Organization", 500
-    session["stytch_session_token"] = resp.session_token
-    return redirect(url_for("index"))
-
-
-# Example of Organization Switching post-authentication
-# This allows a logged in Member on one Organization to "exchange" their
-# session for a session on another Organization that they belong to
-# all while ensuring that each Organization's authentication requirements are honored
-# and respecting data isolation between tenants
-@app.route("/switch_orgs")
-def switch_orgs():
-    session_token = session.get("stytch_session_token", None)
-    logger.info("Switching orgs with session token %s", session_token)
-    if session_token is None:
-        return redirect(url_for("index"))
-
-    resp = stytch_client.discovery.organizations.list(
-        session_token=session.get("stytch_session_token", None)
-    )
-    if resp.status_code != 200:
-        print(resp)
-        return "Error listing discovered organizations", 500
-
-    discovered_orgs = resp.discovered_organizations
-    orgs = []
-    for discovered_org in discovered_orgs:
-        orgs.append(
-            {
-                "organization_id": discovered_org.organization.organization_id,
-                "organization_name": discovered_org.organization.organization_name,
-            }
+        if is_known_device and verdict_action == 'ALLOW':
+            logger.info("Known authentic device. Skipping MFA and exchanging IST for Session.")
+            return exchange_ist_for_org_session(organization_id)
+    else:
+        logger.info("Error looking up TelemetryID. Triggering MFA since unable to verify if known device")    
+    
+    logger.info("Unknown or untrusted device for member enrolled in adaptive MFA. Triggering MFA.")
+    ist = session.get('ist')
+    if ist is None:
+        logger.warning("IST or Session Token required to trigger adaptive MFA")
+        return redirect(url_for("oops"))
+    
+    try:
+        stytch_client.otps.sms.send(
+            organization_id=organization_id,
+            member_id=member.member_id,
+            intermediate_session_token=ist,
         )
+    except StytchError as e:
+        logger.error(f"Unable to trigger OTPS SMS Send with IST: {e.details}")
+        return redirect(url_for("oops"))
+
+    return redirect(url_for("mfa_otp_prompt", organization_id=organization_id))
+
+# Renders template for the user to input the OTP they were sent via SMS
+# Used for returning users who have already registered an MFA phone
+@app.route("/mfa-otp-prompt/<string:organization_id>", methods=["GET"])
+def mfa_otp_prompt(organization_id):
+
+    discovered_organization = get_discovered_organization(organization_id)
+    if discovered_organization is None:
+        logger.info("Discovered Organization not found when prompting for MFA OTP.")
+        return redirect(url_for("oops"))
 
     return render_template(
-        "discoveredOrganizations.html",
-        discovered_organizations=orgs,
-        email_address=resp.email_address,
-        is_login=False,
+        "inputMFACode.html",
         public_token=STYTCH_PUBLIC_TOKEN,
+        organization_id=organization_id,
+        member_id=discovered_organization.membership.member.member_id
     )
 
-
-# Example of Organization Login (if logged out)
-# Example of Session Exchange (if logged in)
-@app.route("/orgs/<string:organization_slug>")
-def organization_index(organization_slug):
+# Triggers the initial SMS send to enroll a member in MFA
+# and renders template for the user to input the OTP they were sent via SMS
+@app.route("/start-mfa-enrollment", methods=["POST"])
+def start_mfa_enrollment():
+    phone = request.form.get("phone")
+    if not phone:
+        logger.error("Phone not provided")
+        return redirect(url_for("oops"))
+    
     member, organization = get_authenticated_member_and_organization()
-    if member and organization:
-        if organization_slug == organization.organization_slug:
-            # User is currently logged into this Organization
-            return redirect(url_for("index"))
-
-        # Check to see if User currently belongs to Organization
-        resp = stytch_client.discovery.organizations.list(
-            session_token=session.get("stytch_session_token", None)
+    if member is None or organization is None:
+        return redirect(url_for("index"))
+    try:
+        stytch_client.otps.sms.send(
+            organization_id=organization.organization_id,
+            member_id=member.member_id,
+            mfa_phone_number=phone,
         )
-        if resp.status_code != 200:
-            print(resp)
-            return "Error listing discovered organizations", 500
+    except StytchError as e:
+        logger.error(f"Error sending OTP for MFA enrollment: {e.details}")
+        return redirect(url_for("oops"))
 
-        discovered_orgs = resp.discovered_organizations
-        for discovered_org in discovered_orgs:
-            if discovered_org.organization.organization_slug == organization_slug:
-                return redirect(
-                    url_for(
-                        "exchange_into_organization",
-                        organization_id=discovered_org.organization.organization_id,
-                    )
-                )
-
-    # User isn't a current member of Organization, have them login
-    resp = stytch_client.organizations.search(
-        query=SearchQuery(
-            operator="AND",
-            operands=[
-                {
-                    "filter_name": "organization_slugs",
-                    "filter_value": [organization_slug],
-                }
-            ],
-        )
-    )
-    if resp.status_code != 200 or len(resp.organizations) == 0:
-        return "Error fetching org by slug", 500
-
-    organization = resp.organizations[0]
+    logger.info("SMS send successful, prompting user for OTP to complete enrollment")
     return render_template(
-        "organizationLogin.html",
+        "inputMFACode.html",
+        public_token=STYTCH_PUBLIC_TOKEN,
         organization_id=organization.organization_id,
-        organization_name=organization.organization_name,
+        member_id=member.member_id
     )
+
+# Authenticates the MFA code (OTP) sent via SMS 
+# If verified, will mint a session for the Member and store the current
+# VisitorFingerprint in the list of KnownDevices for the MemberID
+@app.route("/authenticate-mfa-code", methods=["POST"])
+def authenticate_mfa_code() -> str:
+    
+    data = request.get_json()
+    code = data.get("code", None)
+    organization_id = data.get("organization_id")
+    
+    ist = session.get("ist", None)
+    session_token = session.get("stytch_session_token", None)
+    if ist is None and session_token is None:
+        logger.error("IST or Session Token required to complete MFA authentication")
+        return redirect(url_for("oops"))
+    
+    if ist:
+        logger.info("Performing MFA authentication for login")
+        discovered_organization = get_discovered_organization(organization_id)
+        if discovered_organization is None:
+            logger.info("Discovered organization not found from IST during MFA authentication")
+            return redirect(url_for("oops"))
+        
+        member_id = discovered_organization.membership.member.member_id
+        
+        try:
+            resp = stytch_client.otps.sms.authenticate(
+                code=code,
+                organization_id=organization_id,
+                member_id=discovered_organization.membership.member.member_id,
+                intermediate_session_token=ist
+            )
+        except StytchError as e:
+            logger.error(f"Error authenticating OTP during MFA authentication with IST: {e.details}")
+            return redirect(url_for("oops"))
+        
+        session.pop("ist")
+        session["stytch_session_token"] = resp.session_token
+        
+    else:
+        logger.info("Performing MFA authentication for enrollment")
+        member, organization = get_authenticated_member_and_organization()
+        if member is None:
+            logger.error("Member not found via session for MFA authentication enrollment")
+            return redirect(url_for("oops"))
+
+        try:
+            resp = stytch_client.otps.sms.authenticate(
+                code=code,
+                organization_id=organization_id,
+                member_id=member.member_id,
+                session_token=session_token
+            )
+        except StytchError as e:
+            logger.error(f"Error authenticating OTP during MFA authentication with session token: {e.details}")
+            return redirect(url_for("oops"))
+        
+        session["stytch_session_token"] = resp.session_token
+
+    # Lookup the VisitorFingerprint and add to known devices for MemberID
+    telemetry_id = request.headers.get('X-Telemetry-ID', '')
+    data = fingerprint_lookup(telemetry_id)
+    if data is None:
+        logger.info("Lookup of TelemetryID failed, unable to add device to known devices")
+        return redirect(url_for("index"))
+    
+    visitor_fingerprint = data.get('fingerprints', {}).get('visitor_fingerprint', None)
+    known_devices.setdefault(member_id, set()).add(visitor_fingerprint)
+
+    return redirect(url_for("index"))
 
 
 # Example of authorized updating of Organization Settings + Just-in-Time (JIT) Provisioning
@@ -406,180 +386,58 @@ def enable_jit():
     # When the session_token or session_jwt are passed into method_options
     # Stytch will do AuthZ enforcement based on the Session Member's RBAC permissions
     # before honoring the request
-    resp = stytch_client.organizations.update(
-        organization_id=organization.organization_id,
-        email_jit_provisioning="RESTRICTED",
-        email_allowed_domains=[domain],
-        method_options=UpdateRequestOptions(
-            authorization=Authorization(
-                session_token=session.get("stytch_session_token", None),
+    try:
+        stytch_client.organizations.update(
+            organization_id=organization.organization_id,
+            email_jit_provisioning="RESTRICTED",
+            email_allowed_domains=[domain],
+            method_options=UpdateRequestOptions(
+                authorization=Authorization(
+                    session_token=session.get("stytch_session_token", None),
+                ),
             ),
-        ),
-    )
-    if resp.status_code != 200:
-        print(resp)
-        return "Error updating Organization JIT Provisioning settings"
+        )
+    except StytchError as e:
+        logger.error(f"Error updating Organization JIT Provisioning settings: {e.details}")
+        return redirect(url_for("oops"))
 
     return redirect(url_for("index"))
 
 
-@app.route("/enroll-mfa", methods=["GET"])
-def enroll_mfa():
+@app.route("/email_sent")
+def email_sent():
+    return render_template("emailSent.html")
+
+
+@app.route("/oops")
+def oops():
+    return render_template("oops.html")
+
+
+@app.route("/enroll-mfa-prompt", methods=["GET"])
+def enroll_mfa_prompt():
     return render_template("enrollMFA.html", public_token=STYTCH_PUBLIC_TOKEN)
 
 
-@app.route("/verify-mfa", methods=["GET"])
-def verify_mfa():
-    ist = session.get("ist", None)
-    organization_id = request.args.get("organization_id")
-    visitor_fingerprint = request.args.get("visitor_fingerprint")
-
-    if ist:
-        organization = get_organization_from_ist(organization_id)
-        print("VMFA - IST Org", organization)
-        if not organization:
-            return "Organization not found", 404
-        member = organization.membership.member
-    else:
-        member, organization = get_authenticated_member_and_organization()
-    if member is None or organization is None:
-        return redirect(url_for("index"))
-
-    return render_template(
-        "inputMFACode.html",
-        organization_id=organization.organization.organization_id,
-        member_id=member.member_id,
-        form_action=url_for("authenticate_mfa"),
-        visitor_fingerprint=visitor_fingerprint,
-    )
-
-
-@app.route("/start-mfa-enrollment", methods=["POST"])
-def start_mfa_enrollment():
-    phone = request.form.get("phone")
-    telemetry_id = request.form.get("telemetry_id")
-    member, organization = get_authenticated_member_and_organization()
-    if member is None or organization is None:
-        return redirect(url_for("index"))
-
-    if not phone or not telemetry_id:
-        return "Missing required field", 400
-
-    resp = stytch_client.otps.sms.send(
-        organization_id=organization.organization_id,
-        member_id=member.member_id,
-        mfa_phone_number=phone,
-    )
-
-    if resp.status_code != 200:
-        return "Error sending MFA code"
-
-    visitor_fingerprint = get_visitor_fingerprint(telemetry_id)
-
-    return render_template(
-        "inputMFACode.html",
-        organization_id=organization.organization_id,
-        member_id=member.member_id,
-        form_action=url_for("optional_mfa_enrollment"),
-        visitor_fingerprint=visitor_fingerprint,
-    )
-
-
-@app.route("/authenticate-mfa", methods=["POST"])
-def authenticate_mfa() -> str:
-    code = request.form.get("code", None)
-    organization_id = request.form.get("organization_id", None)
-    member_id = request.form.get("member_id", None)
-    visitor_fingerprint = request.form.get("visitor_fingerprint", None)
-    ist = session.get("ist", None)
-
-    logger.info("authenticate_mfa - visitor_fingerprint %s", visitor_fingerprint)
-
-    if member_id is None or organization_id is None:
-        return redirect(url_for("index"))
-
-    if code is None:
-        return "Missing required field", 400
-
-    ist = session.get("ist")
-    if not ist:
-        return "No intermediate session token", 400
-
-    resp = stytch_client.otps.sms.authenticate(
-        intermediate_session_token=ist,
-        code=code,
-        organization_id=organization_id,
-        member_id=member_id,
-    )
-
-    if resp.status_code != 200:
-        return "error authenticating mfa", 500
-
-    # Add device to known devices
-    add_device_to_known_devices(visitor_fingerprint)
-
-    logger.info("authmfa - pop ist, set session %s", resp.session_token)
-    session.pop("ist", None)
-    session["stytch_session_token"] = resp.session_token
-    return redirect(url_for("index"))
-
-
-@app.route("/optional-mfa-enrollment", methods=["POST"])
-def optional_mfa_enrollment():
-    code = request.form.get("code")
-    visitor_fingerprint = request.form.get("visitor_fingerprint")
-    member, organization = get_authenticated_member_and_organization()
-
-    if member is None or organization is None:
-        return redirect(url_for("index"))
-
-    if not code:
-        return "Missing required field", 400
-
-    resp = stytch_client.otps.sms.authenticate(
-        session_token=session.get("stytch_session_token"),
-        code=code,
-        organization_id=organization.organization_id,
-        member_id=member.member_id,
-        set_mfa_enrollment="unenroll",
-    )
-
-    if resp.status_code != 200:
-        return "Error authenticating MFA code"
-
-    # Add device to known devices
-    add_device_to_known_devices(visitor_fingerprint)
-
-    logger.info("optional-mfa-enrollment known_devices %s", pformat(known_devices))
-
-    return redirect(url_for("index"))
-
-
-def get_organization_from_ist(organization_id):
-    ist = session.get("ist", None)
-
-    if ist:
-        org_list = stytch_client.discovery.organizations.list(
-            intermediate_session_token=ist
-        )
-
-        # find the organization that matches the organization_id
-        organization = next(
-            (
-                org
-                for org in org_list.discovered_organizations
-                if org.organization.organization_id == organization_id
-            ),
-            None,
-        )
-        if not organization:
-            return "Organization not found", 404
-
-        logger.info("IST Organization %s", pformat(organization))
-        return organization
-    else:
+# Helper function to get the DiscoveredOrganizations object for a specified
+# OrganizationID using the user's current IST
+def get_discovered_organization(organization_id):
+    ist = session.get('ist', None)
+    if ist is None:
+        logger.warning("IST not found, unable to fetch discovered organization")
         return None
-
+    try:
+        resp = stytch_client.discovery.organizations.list(intermediate_session_token=ist)
+    except StytchError as e:
+            logger.error(f"Error fetching discovered organizations by IST: {e.details}")
+            return None
+    
+    for discovered_org in resp.discovered_organizations:
+        if discovered_org.organization.organization_id == organization_id:
+            return discovered_org
+    
+    # OrgID passed not found in discovered organizations for IST
+    return None
 
 # Helper to retrieve the authenticated Member and Organization context
 def get_authenticated_member_and_organization():
@@ -599,43 +457,41 @@ def get_authenticated_member_and_organization():
         logger.warning(f"Session authentication failed: {e}")
         return None, None
 
-
+# Helper to get the lookup data for a given TelemetryID
 def fingerprint_lookup(telemetry_id: str):
-    url = f"https://telemetry.stytch.com/v1/fingerprint/lookup?telemetry_id={telemetry_id}"
+    lookup_url = f"https://telemetry.stytch.com/v1/fingerprint/lookup?telemetry_id={telemetry_id}"
     auth = (STYTCH_PROJECT_ID, STYTCH_SECRET)
 
-    response = requests.get(url, auth=auth)
+    resp = requests.get(lookup_url, auth=auth)
+    if resp.status_code != 200:
+        error_message = str(resp.json()).replace('\r\n', '').replace('\n', '')
+        logger.error(f"Error looking up TelemetryID: {error_message}")
+        return None
+    
+    return resp.json()
 
-    print(response.json())
-
-    if response.status_code == 200:
-        resp = response.json()
-        # verdict_action = resp["verdict"]["action"]
-        # visitor_fingerprint = resp["fingerprints"]["visitor_fingerprint"]
-        logger.info("Fingerprint lookup result: %s", pformat(resp))
-        return resp
-    else:
-        return {"error": f"Request failed with status code {response.status_code}"}
-
-
-def get_visitor_fingerprint(telemetry_id: str) -> str:
+# Helper for exchanging the Intermediate Session Token (IST)
+# for a Member Session on the specified Organization
+def exchange_ist_for_org_session(organization_id):
+    ist = session.get('ist', None)
+    if ist is None:
+        logger.error("IST not found to exchange for org session token")
+        return redirect(url_for("oops"))
+    
+    # Exchange IST for stytch_session_token in selected organization
     try:
-        lookup_result = fingerprint_lookup(telemetry_id)
-        return lookup_result["fingerprints"]["visitor_fingerprint"]
-    except KeyError:
-        logger.error("Failed to get visitor_fingerprint from lookup result")
-        return ""
-    except Exception as e:
-        logger.error(f"Error getting visitor_fingerprint: {e}")
-        return ""
-
-
-def add_device_to_known_devices(visitor_fingerprint: str):
-    if visitor_fingerprint:
-        if visitor_fingerprint and visitor_fingerprint not in known_devices:
-            known_devices.append(visitor_fingerprint)
-        logger.info("Known devices updated: %s", pformat(known_devices))
-
+        resp = stytch_client.discovery.intermediate_sessions.exchange(
+            organization_id=organization_id,
+            intermediate_session_token=ist,
+        )
+    except StytchError as e:
+        logger.error(f"Unable to exchange IST for org session: {e.details}")
+        return redirect(url_for("oops"))
+    
+    # Set new stytch_session_token and discard IST if relevant
+    session.pop("ist")
+    session["stytch_session_token"] = resp.session_token
+    return redirect(url_for("index"))
 
 # run's the app on the provided host & port
 if __name__ == "__main__":
