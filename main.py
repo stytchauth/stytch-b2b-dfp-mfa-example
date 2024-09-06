@@ -189,9 +189,8 @@ def exchange_into_organization(organization_id):
     
     member = discovered_organization.membership.member
 
-    # Handle case where Organization MFA Policy is REQUIRED_FOR_ALL
-    # User is required to complete MFA regardless of whether this is a returning device
     if not discovered_organization.member_authenticated and discovered_organization.mfa_required:
+        logger.info("Organization MFA Policy is REQUIRED_FOR_ALL. User is required to complete MFA regardless of device.")
         return redirect(url_for("mfa_otp_prompt", organization_id=organization_id))
 
     # Handle case where user is JIT Provisioning into an Organization with an OPTIONAL MFA policy
@@ -210,9 +209,8 @@ def exchange_into_organization(organization_id):
         
         return redirect(url_for("enroll_mfa_prompt"))
 
-    # Handle case where Organization has an OPTIONAL MFA policy
-    # and member has not opted into adaptive MFA
     if not member.mfa_phone_number:
+        logger.info("MFA not required for Organization and Member has not opted into adaptive MFA. Logging in.")
         return exchange_ist_for_org_session(organization_id)
     
     # Handle case where member is enrolled in adaptive MFA
@@ -227,13 +225,13 @@ def exchange_into_organization(organization_id):
         is_known_device = visitor_fingerprint in known_devices_for_member
         logger.info(f"VisitorFingerprint: {visitor_fingerprint} | Is Known: {is_known_device} | Verdict Action: {verdict_action}")
 
-        # Known authentic device, can skip MFA and exchange IST for Session
         if is_known_device and verdict_action == 'ALLOW':
+            logger.info("Known authentic device. Skipping MFA and exchanging IST for Session.")
             return exchange_ist_for_org_session(organization_id)
     else:
         logger.info("Error looking up TelemetryID. Triggering MFA since unable to verify if known device")    
     
-    # Unknown device for member enrolled in adaptive MFA, trigger MFA
+    logger.info("Unknown or untrusted device for member enrolled in adaptive MFA. Triggering MFA.")
     ist = session.get('ist')
     if ist is None:
         logger.warning("IST or Session Token required to trigger adaptive MFA")
@@ -290,6 +288,7 @@ def start_mfa_enrollment():
         logger.error(f"Error sending OTP for MFA enrollment: {e.details}")
         return redirect(url_for("oops"))
 
+    logger.info("SMS send successful, prompting user for OTP to complete enrollment")
     return render_template(
         "inputMFACode.html",
         public_token=STYTCH_PUBLIC_TOKEN,
@@ -313,8 +312,8 @@ def authenticate_mfa_code() -> str:
         logger.error("IST or Session Token required to complete MFA authentication")
         return redirect(url_for("oops"))
     
-    # Handle forcing MFA on login
     if ist:
+        logger.info("Performing MFA authentication for login")
         discovered_organization = get_discovered_organization(organization_id)
         if discovered_organization is None:
             logger.info("Discovered organization not found from IST during MFA authentication")
@@ -337,7 +336,7 @@ def authenticate_mfa_code() -> str:
         session["stytch_session_token"] = resp.session_token
         
     else:
-        # Handle authentication for MFA enrollment
+        logger.info("Performing MFA authentication for enrollment")
         member, organization = get_authenticated_member_and_organization()
         if member is None:
             logger.error("Member not found via session for MFA authentication enrollment")
