@@ -52,20 +52,19 @@ known_devices = {}
 @app.route("/")
 def index():
     member, organization = get_authenticated_member_and_organization()
-    logger.info("index - Member %s", member)
-    logger.info("index - Organization %s", organization)
     if member and organization:
+        logger.info(f"\nActive Session Found: \nSession Member -- {member.email_address} | {member.member_id} \nSession Org -- {organization.organization_name} | {organization.organization_id}")
         return render_template(
             "loggedIn.html", member=member, organization=organization
         )
 
+    logger.info("No active session -- prompting to login")
     return render_template("discoveryLogin.html", public_token=STYTCH_PUBLIC_TOKEN)
 
 @app.route("/logout")
 def logout():
     session.pop("stytch_session_token", None)
     return redirect(url_for("index"))
-
 
 # Example of initiating Magic Link authentication
 # Magic Links can be used for "Discovery Sign-up or Login" (no OrgID passed)
@@ -80,17 +79,20 @@ def send_eml():
         logger.error("Email not included")
         return redirect(url_for("oops"))
     
-    telemetry_id = request.headers.get('X-Telemetry-ID')
-    if telemetry_id is None:
-        logger.warning("TelemetryID not found. Error in these cases to prevent attackers from submitting without a TelemetryID")
-        return redirect(url_for("oops"))
-    
+    # Use DFP lookup response to proactively block fraudulent traffic from attempting to login
+    telemetry_id = request.headers.get('X-Telemetry-ID', '')
     data = fingerprint_lookup(telemetry_id)
+    if data is None:
+        logger.error("DFP Lookup of TelemetryID failed.")
+        return redirect(url_for("oops"))
+
     verdict_action = data.get('verdict', {}).get('action', '')
-    logger.info(f"Verdict Action: {verdict_action}")
-    # if verdict_action != 'ALLOW':
-    #     print(f"Returning success page to obfuscate fingerprint block --- verdict: {verdict_action}")
-    #     return redirect(url_for("email_sent"))
+    if verdict_action == 'BLOCK':
+        logger.info("DFP Verdict Action is BLOCK -- returning success page to obfuscate fingerprint block")
+        return redirect(url_for("email_sent"))
+    if verdict_action == 'CHALLENGE':
+        logger.info("DFP Verdict Action is CHALLENGE -- will require step-up MFA even if known device")
+    
     try:
         stytch_client.magic_links.email.discovery.send(email_address=email)
     except StytchError as e:
@@ -99,17 +101,11 @@ def send_eml():
 
     return redirect(url_for("email_sent"))
 
-@app.route("/email_sent")
-def email_sent():
-    return render_template("emailSent.html")
 
-@app.route("/oops")
-def oops():
-    return render_template("oops.html")
-
-# Example of completing multi-step auth flow
-# For these flows Stytch will call the Redirect URL specified in your dashboard
-# with an auth token and stytch_token_type that allow you to complete the flow
+# Your default Redirect URL for discovery login
+# This Redirect URL is automatically called by Stytch when the user clicks on the magic link to authenticate
+# and allows you to securely exchange the authentication token for an intermediate_session_token
+# and information about the Organizations the user can log into
 # Read more about Redirect URLs and Token Types here: https://stytch.com/docs/b2b/guides/dashboard/redirect-urls
 @app.route("/authenticate", methods=["GET"])
 def authenticate():
@@ -178,8 +174,9 @@ def create_organization():
     session["stytch_session_token"] = resp.session_token
     return redirect(url_for("enroll_mfa_prompt"))
 
-# After Discovery, users can opt to log into an existing Organization
-# that they belong to or are eligible to join by Email Domain JIT Provision or a pending invite
+# During the Discovery flow users can opt to log into an existing Organization that 
+# they are an active member of, have a pending invite, or are eligible to join based 
+# on their verified email domain
 # You will exchange the IST returned from the discovery.authenticate() method call
 # to complete the login process
 @app.route("/exchange/<string:organization_id>", methods=["POST"])
@@ -220,17 +217,21 @@ def exchange_into_organization(organization_id):
     
     # Handle case where member is enrolled in adaptive MFA
     # First check to see if current device is a known device for the member
-    telemetry_id = request.headers.get('X-Telemetry-ID', None)
-    if telemetry_id is None:
-        logger.error("TelemetryID not found, required to determine if known device.")
-        return redirect(url_for("oops"))
+    telemetry_id = request.headers.get('X-Telemetry-ID', '')
+    data = fingerprint_lookup(telemetry_id)
+    if data:
+        verdict_action = data.get('verdict', {}).get('action', '')
+        visitor_fingerprint = data.get('fingerprints', {}).get('visitor_fingerprint', None)
+        known_devices_for_member = known_devices.get(member.member_id, set())
 
-    visitor_fingerprint = get_visitor_fingerprint(telemetry_id)
-    known_fingerprints = known_devices.get(member.member_id, set())
+        is_known_device = visitor_fingerprint in known_devices_for_member
+        logger.info(f"VisitorFingerprint: {visitor_fingerprint} | Is Known: {is_known_device} | Verdict Action: {verdict_action}")
 
-    # Known device, can skip MFA and exchange IST for Session
-    if visitor_fingerprint in known_fingerprints:
-        return exchange_ist_for_org_session(organization_id)
+        # Known authentic device, can skip MFA and exchange IST for Session
+        if is_known_device and verdict_action == 'ALLOW':
+            return exchange_ist_for_org_session(organization_id)
+    else:
+        logger.info("Error looking up TelemetryID. Triggering MFA since unable to verify if known device")    
     
     # Unknown device for member enrolled in adaptive MFA, trigger MFA
     ist = session.get('ist')
@@ -250,48 +251,8 @@ def exchange_into_organization(organization_id):
 
     return redirect(url_for("mfa_otp_prompt", organization_id=organization_id))
 
-
-# Example of authorized updating of Organization Settings + Just-in-Time (JIT) Provisioning
-# Once enabled:
-# 1. Logout
-# 2. Initiate magic link for an email alias (e.g. ada+1@stytch.com)
-# 3. After clicking the Magic Link you'll see the option to join the organization with JIT enabled
-# Use your work email address to test this, as JIT cannot be enabled for common email domains
-@app.route("/enable_jit")
-def enable_jit():
-    member, organization = get_authenticated_member_and_organization()
-    if member is None or organization is None:
-        return redirect(url_for("index"))
-
-    # Note: not allowed for common domains like gmail.com
-    domain = member.email_address.split("@")[1]
-
-    # When the session_token or session_jwt are passed into method_options
-    # Stytch will do AuthZ enforcement based on the Session Member's RBAC permissions
-    # before honoring the request
-    try:
-        stytch_client.organizations.update(
-            organization_id=organization.organization_id,
-            email_jit_provisioning="RESTRICTED",
-            email_allowed_domains=[domain],
-            method_options=UpdateRequestOptions(
-                authorization=Authorization(
-                    session_token=session.get("stytch_session_token", None),
-                ),
-            ),
-        )
-    except StytchError as e:
-        logger.error(f"Error updating Organization JIT Provisioning settings: {e.details}")
-        return redirect(url_for("oops"))
-
-    return redirect(url_for("index"))
-
-
-@app.route("/enroll-mfa-prompt", methods=["GET"])
-def enroll_mfa_prompt():
-    return render_template("enrollMFA.html", public_token=STYTCH_PUBLIC_TOKEN)
-
-
+# Renders template for the user to input the OTP they were sent via SMS
+# Used for returning users who have already registered an MFA phone
 @app.route("/mfa-otp-prompt/<string:organization_id>", methods=["GET"])
 def mfa_otp_prompt(organization_id):
 
@@ -302,11 +263,13 @@ def mfa_otp_prompt(organization_id):
 
     return render_template(
         "inputMFACode.html",
+        public_token=STYTCH_PUBLIC_TOKEN,
         organization_id=organization_id,
         member_id=discovered_organization.membership.member.member_id
     )
 
-
+# Triggers the initial SMS send to enroll a member in MFA
+# and renders template for the user to input the OTP they were sent via SMS
 @app.route("/start-mfa-enrollment", methods=["POST"])
 def start_mfa_enrollment():
     phone = request.form.get("phone")
@@ -329,11 +292,14 @@ def start_mfa_enrollment():
 
     return render_template(
         "inputMFACode.html",
+        public_token=STYTCH_PUBLIC_TOKEN,
         organization_id=organization.organization_id,
         member_id=member.member_id
     )
 
-# Authenticates the SMS MFA code and mints a session for the Member
+# Authenticates the MFA code (OTP) sent via SMS 
+# If verified, will mint a session for the Member and store the current
+# VisitorFingerprint in the list of KnownDevices for the MemberID
 @app.route("/authenticate-mfa-code", methods=["POST"])
 def authenticate_mfa_code() -> str:
     
@@ -391,15 +357,68 @@ def authenticate_mfa_code() -> str:
         session["stytch_session_token"] = resp.session_token
 
     # Lookup the VisitorFingerprint and add to known devices for MemberID
-    telemetry_id = request.headers.get('X-Telemetry-ID')
-    if not telemetry_id:
-        logger.info("TelemetryID not found, unable to add device to known devices")
+    telemetry_id = request.headers.get('X-Telemetry-ID', '')
+    data = fingerprint_lookup(telemetry_id)
+    if data is None:
+        logger.info("Lookup of TelemetryID failed, unable to add device to known devices")
         return redirect(url_for("index"))
-
-    visitor_fingerprint = get_visitor_fingerprint(telemetry_id)
+    
+    visitor_fingerprint = data.get('fingerprints', {}).get('visitor_fingerprint', None)
     known_devices.setdefault(member_id, set()).add(visitor_fingerprint)
 
     return redirect(url_for("index"))
+
+
+# Example of authorized updating of Organization Settings + Just-in-Time (JIT) Provisioning
+# Once enabled:
+# 1. Logout
+# 2. Initiate magic link for an email alias (e.g. ada+1@stytch.com)
+# 3. After clicking the Magic Link you'll see the option to join the organization with JIT enabled
+# Use your work email address to test this, as JIT cannot be enabled for common email domains
+@app.route("/enable_jit")
+def enable_jit():
+    member, organization = get_authenticated_member_and_organization()
+    if member is None or organization is None:
+        return redirect(url_for("index"))
+
+    # Note: not allowed for common domains like gmail.com
+    domain = member.email_address.split("@")[1]
+
+    # When the session_token or session_jwt are passed into method_options
+    # Stytch will do AuthZ enforcement based on the Session Member's RBAC permissions
+    # before honoring the request
+    try:
+        stytch_client.organizations.update(
+            organization_id=organization.organization_id,
+            email_jit_provisioning="RESTRICTED",
+            email_allowed_domains=[domain],
+            method_options=UpdateRequestOptions(
+                authorization=Authorization(
+                    session_token=session.get("stytch_session_token", None),
+                ),
+            ),
+        )
+    except StytchError as e:
+        logger.error(f"Error updating Organization JIT Provisioning settings: {e.details}")
+        return redirect(url_for("oops"))
+
+    return redirect(url_for("index"))
+
+
+@app.route("/email_sent")
+def email_sent():
+    return render_template("emailSent.html")
+
+
+@app.route("/oops")
+def oops():
+    return render_template("oops.html")
+
+
+@app.route("/enroll-mfa-prompt", methods=["GET"])
+def enroll_mfa_prompt():
+    return render_template("enrollMFA.html", public_token=STYTCH_PUBLIC_TOKEN)
+
 
 # Helper function to get the DiscoveredOrganizations object for a specified
 # OrganizationID using the user's current IST
@@ -452,16 +471,8 @@ def fingerprint_lookup(telemetry_id: str):
     
     return resp.json()
 
-# Extracts the VisitorFingerprint from the DFP lookup data for a TelemetryID
-def get_visitor_fingerprint(telemetry_id):
-
-    data = fingerprint_lookup(telemetry_id)
-    if data is None:
-        return None
-    
-    return data.get('fingerprints', {}).get('visitor_fingerprint', None)
-
-
+# Helper for exchanging the Intermediate Session Token (IST)
+# for a Member Session on the specified Organization
 def exchange_ist_for_org_session(organization_id):
     ist = session.get('ist', None)
     if ist is None:

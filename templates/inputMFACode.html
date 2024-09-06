@@ -9,21 +9,23 @@
     <button type="submit">Verify</button>
 </form>
 <script>
-    var publicToken = "{{ public_token }}";
-    var organizationID = "{{ organization_id }}";
+    var public_token = "{{ public_token }}";
+    var organization_id = "{{ organization_id }}";
 
     document.getElementById('mfaInputForm').addEventListener('submit', function(event) {
         event.preventDefault();
 
         const code = document.getElementById('code').value;
-        GetTelemetryID().then(telemetry_id => {
+        GetTelemetryID({
+            publicToken: public_token
+        }).then(telemetry_id => {
             fetch('/authenticate-mfa-code', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-Telemetry-ID': telemetry_id
                 },
-                body: JSON.stringify({ code: code, organization_id:  organizationID}),
+                body: JSON.stringify({ code: code, organization_id:  organization_id}),
             })
             .then(response => {
                 if (response.redirected) {

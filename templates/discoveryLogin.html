@@ -16,13 +16,13 @@
 </div>
 
 <script>
-    var publicToken = "{{ public_token }}";
+    var public_token = "{{ public_token }}";
 
     document.getElementById('loginForm').addEventListener('submit', function(event) {
         event.preventDefault();
 
         const email = document.getElementById('email').value;
-        GetTelemetryID().then(telemetry_id => {
+        GetTelemetryID({publicToken: public_token}).then(telemetry_id => {
             fetch(`/send_magic_link`, {
                 method: 'POST',
                 headers: {
