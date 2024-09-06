@@ -53,7 +53,8 @@ known_devices = {}
 def index():
     member, organization = get_authenticated_member_and_organization()
     if member and organization:
-        logger.info(f"\nActive Session Found: \nSession Member -- {member.email_address} | {member.member_id} \nSession Org -- {organization.organization_name} | {organization.organization_id}")
+        logger.info("Active Session Found")
+        logger.info(f"Session Member -- {member.email_address} | {member.member_id} \nSession Org -- {organization.organization_name} | {organization.organization_id}")
         return render_template(
             "loggedIn.html", member=member, organization=organization
         )
@@ -66,10 +67,9 @@ def logout():
     session.pop("stytch_session_token", None)
     return redirect(url_for("index"))
 
-# Example of initiating Magic Link authentication
-# Magic Links can be used for "Discovery Sign-up or Login" (no OrgID passed)
-# OR "Organization Login" (with an OrgID passed)
-# You can read more about these differences here: https://stytch.com/docs/b2b/guides/login-flows
+# Example of initiating discovery magic link authentication
+# from a central login page and protecting this flow from attackers
+# by using Stytch's Device Fingerprinting product
 @app.route("/send_magic_link", methods=["POST"])
 def send_eml():
 
