@@ -117,7 +117,7 @@ def authenticate():
     token = request.args["token"]
 
     if token_type != "discovery":
-        logger.error(f"{token_type} token type is not supported in this example")
+        logger.error("Unsupported token type")
         return redirect(url_for("oops"))
     try:
         resp = stytch_client.magic_links.discovery.authenticate(
@@ -200,6 +200,7 @@ def exchange_into_organization(organization_id):
     # Handle case where user is JIT Provisioning into an Organization with an OPTIONAL MFA policy
     # Prompt to enroll in adaptive MFA
     if discovered_organization.membership.type == 'eligible_to_join_by_email_domain':
+        logger.info(f"JIT Provisioning into OrgID: {discovered_organization.organization.organization_id}")
         ist = session.get('ist', None)
         try:
             stytch_client.discovery.intermediate_sessions.exchange(
@@ -445,7 +446,8 @@ def fingerprint_lookup(telemetry_id: str):
 
     resp = requests.get(lookup_url, auth=auth)
     if resp.status_code != 200:
-        logger.error(f"Error looking up TelemetryID: {resp.json()}")
+        error_message = str(resp.json()).replace('\r\n', '').replace('\n', '')
+        logger.error(f"Error looking up TelemetryID: {error_message}")
         return None
     
     return resp.json()
