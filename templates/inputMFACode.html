@@ -1,43 +1,69 @@
 {% extends "layout.html" %}
 {% block content %}
-<h2>Enter MFA Code</h2>
-<form id="mfaInputForm">
-    <label for="code">MFA Code:</label>
-    <input type="text" id="code" name="code" required autofocus>
-    <input type="hidden" id="organization_id" name="organization_id" value="{{ organization_id }}">
-    <input type="hidden" id="member_id" name="member_id" value="{{ member_id }}">
-    <button type="submit">Verify</button>
-</form>
+<div class="input-mfa-container">
+    <h1>Enter passcode</h1>
+    <p>A 6-digit passcode was sent to you.</p>
+    <form id="mfaInputForm">
+        <div class="digit-input-container">
+            {% for i in range(6) %}
+            <input type="text" maxlength="1" class="digit-input" data-index="{{ i }}">
+            {% endfor %}
+        </div>
+    </form>
+</div>
 <script>
     var public_token = "{{ public_token }}";
     var organization_id = "{{ organization_id }}";
 
-    document.getElementById('mfaInputForm').addEventListener('submit', function(event) {
-        event.preventDefault();
+    document.addEventListener('DOMContentLoaded', function() {
+            const inputs = document.querySelectorAll('.digit-input');
 
-        const code = document.getElementById('code').value;
-        GetTelemetryID({
-            publicToken: public_token
-        }).then(telemetry_id => {
-            fetch('/authenticate-mfa-code', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Telemetry-ID': telemetry_id
-                },
-                body: JSON.stringify({ code: code, organization_id:  organization_id}),
-            })
-            .then(response => {
-                if (response.redirected) {
-                    window.location.href = response.url;
-                } else {
-                    return response.json();
-                }
-            })
-            .catch((error) => {
-                console.error('Error:', error);
+            inputs.forEach((input, index) => {
+                input.addEventListener('input', function() {
+                    if (this.value.length === 1) {
+                        if (index < inputs.length - 1) {
+                            inputs[index + 1].focus();
+                        } else {
+                            submitPasscode();
+                        }
+                    }
+                });
+
+                input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Backspace' && this.value.length === 0 && index > 0) {
+                        inputs[index - 1].focus();
+                    }
+                });
             });
-        });
-        });
+
+            function submitPasscode() {
+                const code = Array.from(inputs).map(input => input.value).join('');
+                if (code.length === 6) {
+                    console.log('Submitting passcode:', code);
+                    GetTelemetryID({
+                        publicToken: public_token
+                    }).then(telemetry_id => {
+                        fetch('/authenticate-mfa-code', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-Telemetry-ID': telemetry_id
+                            },
+                            body: JSON.stringify({ code: code, organization_id: organization_id}),
+                        })
+                        .then(response => {
+                            if (response.redirected) {
+                                window.location.href = response.url;
+                            } else {
+                                return response.json();
+                            }
+                        })
+                        .catch((error) => {
+                            console.error('Error:', error);
+                        });
+                    });
+                }
+          }
+    });
 </script>
 {% endblock %}

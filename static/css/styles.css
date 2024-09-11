@@ -115,7 +115,7 @@ button {
 
 /* discoveryLogin styles */
 
-.login-container {
+.login-container, .enroll-mfa-container, .input-mfa-container {
     max-width: 400px;
     margin: 4rem auto;
     padding: 2rem;
@@ -125,7 +125,7 @@ button {
     text-align: center;
 }
 
-.login-container h1 {
+.login-container h1, .enroll-mfa-container h1, .input-mfa-container h1 {
     font-size: 1.5rem;
     color: #1c1e21;
     margin-bottom: 1rem;
@@ -133,10 +133,25 @@ button {
     letter-spacing: normal;
 }
 
-.login-container p {
+.login-container p, .enroll-mfa-container p, .input-mfa-container p {
     font-size: 0.9rem;
     color: #65676b;
     margin-bottom: 1.5rem;
+}
+
+
+.digit-input-container {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.digit-input {
+    width: 40px;
+    height: 40px;
+    margin-right: 10px;
+    text-align: center;
+    font-size: 18px;
 }
 
 .input-group {
@@ -155,6 +170,32 @@ button {
 .input-group input:focus {
     border-color: #1877f2;
     box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.2);
+}
+
+.phone-input {
+    display: flex;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.phone-input select {
+    width: 70px;
+    padding: 0.75rem;
+    font-size: 1rem;
+    border: 1px solid #dddfe2;
+    border-radius: 4px 0 0 4px;
+    outline: none;
+    background-color: #f0f2f5;
+}
+
+.phone-input .input-group {
+    flex-grow: 1;
+    margin-bottom: 0;
+}
+
+.phone-input .input-group input {
+    border-radius: 0 4px 4px 0;
+    border-left: none;
 }
 
 .login-button {
@@ -209,4 +250,111 @@ button {
     color: black;
     text-decoration: none;
     cursor: pointer;
+}
+
+.known-devices-header {
+    font-size: 1.5rem;
+    color: #1c1e21;
+    margin-bottom: 1rem;
+    margin-top: 4rem;
+    font-weight: 700;
+}
+
+.dashboard-container {
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 2rem;
+    background-color: #ffffff;
+    border-radius: 8px;
+}
+
+.dashboard-container h2 {
+    font-size: 1.8rem;
+    color: #333;
+    margin-bottom: 1.5rem;
+    text-align: left;
+}
+
+.info-container {
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    text-align: left;
+}
+
+.info-container p {
+    margin: 0.5rem 0;
+    font-size: 1rem;
+    color: #333;
+}
+
+.enable-jit-button {
+    background-color: #19303D;
+    color: #ffffff;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    font-weight: 600;
+}
+
+.enable-jit-button:hover {
+    background-color: #0f1f29;
+}
+
+.jit-status {
+    font-size: 1rem;
+    color: #333;
+    margin-bottom: 1.5rem;
+}
+
+.known-devices-container {
+    margin-top: 2rem;
+}
+
+.known-devices-container h3 {
+    font-size: 1.5rem;
+    color: #333;
+    margin-bottom: 1rem;
+    text-align: left;
+}
+
+.known-devices-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.known-devices-table th,
+.known-devices-table td {
+    text-align: left;
+    padding: 0.75rem;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.known-devices-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+.known-devices-list {
+    list-style-type: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.known-devices-list li {
+    margin-bottom: 0.25rem;
+}
+
+.org-slug-description {
+    font-size: 0.8rem;
+    color: #65676b;
+    margin-bottom: 1.5rem;
+}
+
+.org_slug {
+    margin-top: 10px;
 }

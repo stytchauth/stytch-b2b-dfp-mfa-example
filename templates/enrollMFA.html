@@ -1,11 +1,21 @@
 {% extends "layout.html" %}
 {% block content %}
-<h2>Enroll in MFA (SMS)</h2>
-<form action="{{ url_for('start_mfa_enrollment') }}" method="post">
-    <label for="phone">Phone Number:</label>
-    <input type="text" id="phone" name="phone" required>
-    <button type="button" onclick="submitForm()">Enroll</button>
-</form>
+<div class="enroll-mfa-container">
+    <h1>Enter your phone number to set up Multi-Factor Authentication</h1>
+    <p>Your organization requires an additional form of verification to make your account more secure.</p>
+    <form action="{{ url_for('start_mfa_enrollment') }}" method="post">
+        <div class="phone-input">
+            <select name="country_code" id="country_code">
+                <option value="+1">+1</option>
+                <!-- Add more country codes as needed -->
+            </select>
+            <div class="input-group">
+                <input type="tel" id="phone" name="phone" placeholder="(123) 456-7890" required>
+            </div>
+        </div>
+        <button type="submit" class="submit-button">Continue</button>
+    </form>
+</div>
 <script>
     const public_token = "{{ public_token }}";
     function submitForm() {

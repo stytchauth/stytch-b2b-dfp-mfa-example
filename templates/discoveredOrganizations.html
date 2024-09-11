@@ -18,13 +18,11 @@
             </button>
         {% endfor %}
         {% if discovered_organizations %}
+            <span>OR</span>
         {% endif %}
-        {% if is_login %}
-        <span>OR</span>
         <button id="btnCreateOrg">
             Create New Organization
-         </button>
-        {% endif %}
+        </button>
     </div>
 
     <div id="orgModal" class="modal">
@@ -38,8 +36,9 @@
                 <input type="text" id="org_name" name="org_name", placeholder="Olive Garden" required><br>
 
                 <label for="org_slug"><strong>Organization Slug:</strong></label>
-                <p>Unique URL slug consisisting of alphanumeric characters and the following reserved characters: - . _ ~</p>
-                <input type="text" id="org_slug" name="org_slug", placeholder="olive-garden" required><br>
+                <input type="text" id="org_slug" name="org_slug", placeholder="olive-garden" required>
+                <p class="org-slug-description">Unique URL slug consisisting of alphanumeric characters and the following reserved characters: - . _ ~</p>
+                <br />
 
                 <button type="submit">Submit</button>
             </form>
