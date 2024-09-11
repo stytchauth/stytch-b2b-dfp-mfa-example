@@ -333,3 +333,13 @@ button {
 .known-devices-list li {
     margin-bottom: 0.25rem;
 }
+
+.org-slug-description {
+    font-size: 0.8rem;
+    color: #65676b;
+    margin-bottom: 1.5rem;
+}
+
+.org_slug {
+    margin-top: 10px;
+}
