@@ -115,7 +115,7 @@ button {
 
 /* discoveryLogin styles */
 
-.login-container, .enroll-mfa-container {
+.login-container, .enroll-mfa-container, .input-mfa-container {
     max-width: 400px;
     margin: 4rem auto;
     padding: 2rem;
@@ -125,7 +125,7 @@ button {
     text-align: center;
 }
 
-.login-container h1, .enroll-mfa-container h1 {
+.login-container h1, .enroll-mfa-container h1, .input-mfa-container h1 {
     font-size: 1.5rem;
     color: #1c1e21;
     margin-bottom: 1rem;
@@ -133,10 +133,25 @@ button {
     letter-spacing: normal;
 }
 
-.login-container p, .enroll-mfa-container p {
+.login-container p, .enroll-mfa-container p, .input-mfa-container p {
     font-size: 0.9rem;
     color: #65676b;
     margin-bottom: 1.5rem;
+}
+
+
+.digit-input-container {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.digit-input {
+    width: 40px;
+    height: 40px;
+    margin-right: 10px;
+    text-align: center;
+    font-size: 18px;
 }
 
 .input-group {
