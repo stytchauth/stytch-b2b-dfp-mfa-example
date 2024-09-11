@@ -236,3 +236,34 @@ button {
     text-decoration: none;
     cursor: pointer;
 }
+
+.known-devices {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.known-devices dt {
+    font-size: 1rem;
+    color: #1c1e21;
+    margin-bottom: 1rem;
+    font-weight: 700;
+}
+
+.known-devices-header {
+    font-size: 1.5rem;
+    color: #1c1e21;
+    margin-bottom: 1rem;
+    margin-top: 4rem;
+    font-weight: 700;
+}
+
+.known-devices-list {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+.known-devices-list li {
+    list-style-type: none;
+}
