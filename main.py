@@ -253,9 +253,9 @@ def exchange_into_organization(organization_id):
         known_devices_for_member = known_devices.get(member.member_id, set())
 
         is_known_device = visitor_fingerprint in known_devices_for_member
-        logger.info(
-            f"VisitorFingerprint: {visitor_fingerprint} | Is Known: {is_known_device} | Verdict Action: {verdict_action}"
-        )
+        # logger.info(
+        #     f"VisitorFingerprint: {visitor_fingerprint} | Is Known: {is_known_device} | Verdict Action: {verdict_action}"
+        # )
 
         if is_known_device and verdict_action == "ALLOW":
             logger.info(
