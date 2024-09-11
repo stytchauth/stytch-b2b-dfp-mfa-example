@@ -21,25 +21,17 @@
 
     {% if known_devices %}
         <div class="known-devices-container">
-            <h3>Known Devices</h3>
+            <h3>Known Device Fingerprints</h3>
             <table class="known-devices-table">
                 <thead>
                     <tr>
-                        <th>Member ID</th>
                         <th>Fingerprints</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for device, fingerprints in known_devices.items() %}
+                    {% for fingerprint in known_devices %}
                         <tr>
-                            <td>{{ device }}</td>
-                            <td>
-                                <ul class="known-devices-list">
-                                    {% for fingerprint in fingerprints %}
-                                        <li>{{ fingerprint }}</li>
-                                    {% endfor %}
-                                </ul>
-                            </td>
+                            <td>{{ fingerprint }}</td>
                         </tr>
                     {% endfor %}
                 </tbody>

@@ -58,12 +58,13 @@ def index():
         logger.info(
             f"Session Member -- {member.email_address} | {member.member_id} \nSession Org -- {organization.organization_name} | {organization.organization_id}"
         )
-        logger.info(f"Known Devices: {known_devices}")
+        known_devices_for_member = known_devices.get(member.member_id)
+        logger.info(f"Known Member Devices: {known_devices_for_member}")
         return render_template(
             "loggedIn.html",
             member=member,
             organization=organization,
-            known_devices=known_devices,
+            known_devices=known_devices_for_member,
         )
 
     logger.info("No active session -- prompting to login")
