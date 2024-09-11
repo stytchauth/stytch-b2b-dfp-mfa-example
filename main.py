@@ -151,7 +151,6 @@ def authenticate():
         "discoveredOrganizations.html",
         discovered_organizations=orgs,
         email_address=resp.email_address,
-        is_login=True,
         public_token=STYTCH_PUBLIC_TOKEN,
     )
 
