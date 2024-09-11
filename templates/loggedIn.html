@@ -4,51 +4,52 @@
 {% block content %}
 <div class="dashboard-container">
     <h2>Welcome to "{{ organization.organization_name }}" Org</h2>
-    <p>Email: {{ member.email_address }}</p>
-    <p>Admin Role: {{ member.is_admin }}</p>
-    <p>Organization Slug: {{ organization.organization_slug }}</p>
+    <div class="info-container">
+        <p><strong>Email:</strong> {{ member.email_address }}</p>
+        <p><strong>Admin Role:</strong> {{ member.is_admin }}</p>
+        <p><strong>Organization Slug:</strong> {{ organization.organization_slug }}</p>
     {% if organization.email_jit_provisioning == 'NOT_ALLOWED' %}
         {% if member.is_admin %}
-            <button type="submit" onClick="enableJIT()">Enable JIT Provisioning by Email Domain</button>
+            <button type="submit" onClick="enableJIT()" class="enable-jit-button">Enable JIT Provisioning by Email Domain</button>
         {% else %}
-            <p> JIT Provisioning: NOT_ALLOWED </p>
-        {%endif %}
+            <p class="jit-status">JIT Provisioning: NOT_ALLOWED</p>
+        {% endif %}
     {% else %}
-        <p>JIT Provisioning Allowed for Domains: {{ organization.email_allowed_domains}} </p>
+        <p class="jit-status">JIT Provisioning Allowed for Domains: {{ organization.email_allowed_domains }}</p>
     {% endif %}
+    </div>
 
-    
     {% if known_devices %}
-        <h3 class="known-devices-header">Known Devices</h3>
-        <table class="known-devices-table">
-            <thead>
-                <tr>
-                    <th>Member ID</th>
-                    <th>Fingerprints</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for device, fingerprints in known_devices.items() %}
+        <div class="known-devices-container">
+            <h3>Known Devices</h3>
+            <table class="known-devices-table">
+                <thead>
                     <tr>
-                        <td>{{ device }}</td>
-                        <td>
-                            <ul class="known-devices-list">
-                                {% for fingerprint in fingerprints %}
-                                    <li>{{ fingerprint }}</li>
-                                {% endfor %}
-                            </ul>
-                        </td>
+                        <th>Member ID</th>
+                        <th>Fingerprints</th>
                     </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    {% for device, fingerprints in known_devices.items() %}
+                        <tr>
+                            <td>{{ device }}</td>
+                            <td>
+                                <ul class="known-devices-list">
+                                    {% for fingerprint in fingerprints %}
+                                        <li>{{ fingerprint }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     {% endif %}
-
-
 </div>
 <script>
-        function enableJIT() {
-            window.location.href = `/enable_jit`;
-        }
+    function enableJIT() {
+        window.location.href = `/enable_jit`;
+    }
 </script>
 {% endblock %}

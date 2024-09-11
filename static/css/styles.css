@@ -237,20 +237,6 @@ button {
     cursor: pointer;
 }
 
-.known-devices {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-
-.known-devices dt {
-    font-size: 1rem;
-    color: #1c1e21;
-    margin-bottom: 1rem;
-    font-weight: 700;
-}
-
 .known-devices-header {
     font-size: 1.5rem;
     color: #1c1e21;
@@ -259,11 +245,91 @@ button {
     font-weight: 700;
 }
 
+.dashboard-container {
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 2rem;
+    background-color: #ffffff;
+    border-radius: 8px;
+}
+
+.dashboard-container h2 {
+    font-size: 1.8rem;
+    color: #333;
+    margin-bottom: 1.5rem;
+    text-align: left;
+}
+
+.info-container {
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    text-align: left;
+}
+
+.info-container p {
+    margin: 0.5rem 0;
+    font-size: 1rem;
+    color: #333;
+}
+
+.enable-jit-button {
+    background-color: #19303D;
+    color: #ffffff;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    font-weight: 600;
+}
+
+.enable-jit-button:hover {
+    background-color: #0f1f29;
+}
+
+.jit-status {
+    font-size: 1rem;
+    color: #333;
+    margin-bottom: 1.5rem;
+}
+
+.known-devices-container {
+    margin-top: 2rem;
+}
+
+.known-devices-container h3 {
+    font-size: 1.5rem;
+    color: #333;
+    margin-bottom: 1rem;
+    text-align: left;
+}
+
+.known-devices-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.known-devices-table th,
+.known-devices-table td {
+    text-align: left;
+    padding: 0.75rem;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.known-devices-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
 .known-devices-list {
     list-style-type: none;
     padding-left: 0;
+    margin: 0;
 }
 
 .known-devices-list li {
-    list-style-type: none;
+    margin-bottom: 0.25rem;
 }
