@@ -74,6 +74,7 @@ Once you've set up your Stytch project and have your API keys and signed into th
 
 You can repeat this process for additional devices.
 
+In addition to the dashboard, setting rules can be accomplished programmatically using the [Stytch Set Rule API](https://stytch.com/docs/fraud/api/set-rule). Read more in our docs on [Setting Rules with DFP](https://stytch.com/docs/fraud/guides/device-fingerprinting/traffic-shaping/setting-rules).
 
 ## Next steps
 
