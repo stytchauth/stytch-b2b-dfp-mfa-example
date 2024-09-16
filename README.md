@@ -3,7 +3,7 @@ This example app demonstrates how to leverage [Stytch's Device Fingerprinting (D
 
 The app supports organization creation and demos limited management features.  After authentication, users have the ability to create new organizations.  Once created, authenticated users can manage the configuration of Just-in-Time (JIT) Provisioning, to tailor the onboarding process to their specific needs. JIT provisioning allows administrators to enable automatic user onboarding for specific email domains, such as new users with email addresses matching the specified domains.
 
-It tracks the user's known devices in an in-memory dictionary after successful MFA and verdict from DFP and uses that information to determine if the subsequent login attempt should be challenged with MFA.
+It tracks the user's known devices in an in-memory structure after successful MFA and verdict from DFP and uses that information to determine if the subsequent login attempt should be challenged with MFA.
 
 The following use cases in the app demonstrate the integration of [Stytch's B2B authentication](https://stytch.com/docs/b2b/overview), [MFA](https://stytch.com/docs/b2b/guides/mfa/overview), and [Device Fingerprinting](https://stytch.com/docs/fraud/guides) capabilities:
 
