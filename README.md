@@ -26,8 +26,6 @@ The following use cases in the app demonstrate the integration of [Stytch's B2B 
    - If the verdict is "BLOCK", the login is denied (simulated by redirecting to a success page to avoid revealing the block).
    - If the verdict is "CHALLENGE", MFA is required even for known devices.
 
-
-
 ## Get Started
 In order to run this example app you need to have signed up for a Stytch account, and request access to our DFP product (a step we require for security purposes).
 
@@ -62,6 +60,20 @@ Run
 python3 main.py
 ```
 Go to http://localhost:3000/
+
+## Adding Stytch DFP 'CHALLENGE' and 'BLOCK' authorization rules
+
+Once you've set up your Stytch project and have your API keys and signed into the app, you can use the [Stytch Dashboard](https://stytch.com/dashboard/device-fingerprinting?tab=rules) to add 'CHALLENGE' and 'BLOCK' authorization rules to test the behavior of the app.
+
+1. Go to [Device Fingerprinting in the Stytch Dashboard](https://stytch.com/dashboard/device-fingerprinting?tab=rules)
+2. Click on 'New Rule'
+3. Paste the fingerprint of the device you want to enforce a verdict of 'CHALLENGE' or 'BLOCK'
+4. Choose 'CHALLENGE' or 'BLOCK' from the 'Action' dropdown
+5. Click 'Save'
+6. Attempt to login with the device that has the fingerprint you just added and observe the behavior of the app.
+
+You can repeat this process for additional devices.
+
 
 ## Next steps
 
