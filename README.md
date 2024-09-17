@@ -54,7 +54,11 @@ pip install -r requirements.txt
 
 Copy `.env.template` to `.env` and update the values with your Stytch project ID, secret and public token from [the API Keys section of the Stytch Dashboard](https://stytch.com/dashboard/api-keys).
 
-#### 7. Run the Server
+#### 5. Set Default Redirect URLs
+
+In the Stytch Dashboard, under Redirect URLs, add `http://localhost:3000/authenticate` as the default "Discovery" Redirect URL.
+
+#### 6. Run the Server
 Run
 ```
 python3 main.py
