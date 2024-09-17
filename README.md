@@ -56,7 +56,8 @@ Copy `.env.template` to `.env` and update the values with your Stytch project ID
 
 #### 5. Set Default Redirect URLs
 
-In the Stytch Dashboard, under Redirect URLs, add `http://localhost:3000/authenticate` as the default "Discovery" Redirect URL.
+This app uses the default test Redirect URL of localhost:3000/authenticate. 
+If you have updated your default Redirect URLs for Login and Signup, go to the Stytch Dashboard > Redirect URLs, and add `http://localhost:3000/authenticate` as the default "Discovery" Redirect URL.
 
 #### 6. Run the Server
 Run
