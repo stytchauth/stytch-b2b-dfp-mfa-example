@@ -390,6 +390,9 @@ def authenticate_mfa_code() -> str:
                 "Member not found via session for MFA authentication enrollment"
             )
             return redirect(url_for("oops"))
+        
+        else:
+            member_id = member.member_id
 
         try:
             resp = stytch_client.otps.sms.authenticate(
